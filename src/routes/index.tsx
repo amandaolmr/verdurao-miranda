@@ -1,36 +1,57 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { Navbar } from "@/components/Navbar";
 import { CategoryBar } from "@/components/CategoryBar";
 import { ProductCard } from "@/components/ProductCard";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/hooks/useCart";
-import { MessageCircle, ShoppingBag, Clock, MapPin, Phone } from "lucide-react";
+import { MessageCircle, ShoppingBag, Clock, MapPin, Phone, RefreshCcw } from "lucide-react";
 import heroImage from "@/assets/hero-produce.jpg";
 import { CartDrawer } from "@/components/CartDrawer";
+import { useCategories, useProducts } from "@/hooks/useData";
+import { useEffect, useRef } from "react";
+
+interface IndexSearch {
+  categoria?: string;
+}
 
 export const Route = createFileRoute("/")({
+  validateSearch: (search: Record<string, unknown>): IndexSearch => {
+    return {
+      categoria: (search.categoria as string) || undefined,
+    };
+  },
   head: () => ({
     meta: [
       { title: "Verdurão Miranda — Hortifruti de Qualidade" },
       { name: "description", content: "O melhor verdurão da região na palma da sua mão. Frutas, verduras e legumes frescos com entrega rápida." },
-      { property: "og:title", content: "Verdurão Miranda — Hortifruti de Qualidade" },
-      { property: "og:description", content: "O melhor verdurão da região na palma da sua mão. Frutas, verduras e legumes frescos com entrega rápida." },
     ],
   }),
   component: Index,
 });
 
-const MOCK_PRODUCTS = [
-  { id: "1", nome: "Tomate Saladete", preco: 7.99, unidade_venda: "Kg", descricao: "Tomates frescos e selecionados, ideais para saladas." },
-  { id: "2", nome: "Alface Crespa", preco: 3.50, unidade_venda: "Unidade", descricao: "Alface crocante e higienizada, colhida no dia." },
-  { id: "3", nome: "Banana Prata", preco: 5.49, unidade_venda: "Kg", descricao: "Bananas docinhas, perfeitas para o café da manhã." },
-  { id: "4", nome: "Cenoura", preco: 4.80, unidade_venda: "Kg", descricao: "Cenouras crocantes e ricas em vitamina A." },
-  { id: "5", nome: "Ovos Brancos", preco: 18.00, unidade_venda: "Bandeja", descricao: "Bandeja com 30 ovos grandes e frescos." },
-  { id: "6", nome: "Maço de Cheiro Verde", preco: 2.50, unidade_venda: "Maço", descricao: "Salsa e cebolinha frescas para temperar seus pratos." },
-];
-
 function Index() {
   const { addToCart, count } = useCart();
+  const { categoria: selectedCategoryId } = useSearch({ from: "/" });
+  const navigate = useNavigate({ from: "/" });
+  const productsSectionRef = useRef<HTMLDivElement>(null);
+
+  const { data: categories = [], isLoading: loadingCategories } = useCategories();
+  const { data: products = [], isLoading: loadingProducts } = useProducts(selectedCategoryId);
+
+  const handleSelectCategory = (id: string) => {
+    navigate({
+      search: (prev: IndexSearch) => ({ ...prev, categoria: id || undefined }),
+    });
+    
+    // Scroll to products section
+    if (productsSectionRef.current) {
+      const yOffset = -80; 
+      const y = productsSectionRef.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+  };
+
+  const selectedCategoryName = categories.find(c => c.id === selectedCategoryId)?.nome;
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
@@ -55,7 +76,7 @@ function Index() {
               <Button 
                 size="lg" 
                 className="rounded-2xl px-8 py-6 text-lg font-bold shadow-xl shadow-primary/20"
-                onClick={() => document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' })}
+                onClick={() => productsSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
               >
                 Comprar Agora
               </Button>
@@ -66,28 +87,69 @@ function Index() {
         {/* Categories Section */}
         <section className="py-6">
           <div className="container mx-auto">
-            <h2 className="px-4 text-xl font-bold tracking-tight">Categorias</h2>
-            <CategoryBar />
+            <h2 className="px-4 text-xl font-bold tracking-tight mb-2">Categorias</h2>
+            <CategoryBar 
+              categories={categories} 
+              selectedId={selectedCategoryId}
+              onSelect={handleSelectCategory}
+            />
           </div>
         </section>
 
         {/* Featured Products */}
-        <section id="catalogo" className="py-6 scroll-mt-20">
+        <section ref={productsSectionRef} id="catalogo" className="py-6 scroll-mt-20">
           <div className="container mx-auto px-4">
             <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-xl font-bold tracking-tight">Destaques do Dia</h2>
-              <Button variant="link" className="text-primary font-bold">Ver tudo</Button>
+              <div>
+                <h2 className="text-2xl font-black tracking-tight text-primary">
+                  {selectedCategoryName || "Todos os Produtos"}
+                </h2>
+                {selectedCategoryId && (
+                  <p className="text-sm text-muted-foreground">Mostrando itens em {selectedCategoryName}</p>
+                )}
+              </div>
+              
+              {selectedCategoryId && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="rounded-xl border-primary text-primary font-bold gap-2"
+                  onClick={() => handleSelectCategory("")}
+                >
+                  <RefreshCcw className="h-4 w-4" />
+                  Ver Todos
+                </Button>
+              )}
             </div>
             
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-              {MOCK_PRODUCTS.map((product) => (
-                <ProductCard 
-                  key={product.id} 
-                  product={product} 
-                  onAddToCart={addToCart}
-                />
-              ))}
-            </div>
+            {loadingProducts ? (
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="aspect-[3/4] rounded-2xl bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : products.length > 0 ? (
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+                {products.map((product: any) => (
+                  <ProductCard 
+                    key={product.id} 
+                    product={product} 
+                    onAddToCart={addToCart}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-20 bg-muted/30 rounded-3xl">
+                <p className="text-muted-foreground font-medium">Nenhum produto encontrado nesta categoria.</p>
+                <Button 
+                  variant="link" 
+                  className="text-primary font-bold mt-2"
+                  onClick={() => handleSelectCategory("")}
+                >
+                  Limpar filtros
+                </Button>
+              </div>
+            )}
           </div>
         </section>
 
