@@ -8,6 +8,7 @@ import { useCart } from "@/hooks/useCart";
 
 export function Navbar() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const { count } = useCart();
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-sm">
