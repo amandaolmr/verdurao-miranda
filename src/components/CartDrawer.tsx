@@ -5,12 +5,14 @@ import {
   SheetTitle,
   SheetTrigger,
   SheetFooter,
+  SheetClose,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart, Plus, Minus, Trash2, ShoppingBag } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Link } from "@tanstack/react-router";
 
 export function CartDrawer({ children }: { children?: React.ReactNode }) {
   const { items, updateQuantity, removeFromCart, subtotal, count } = useCart();
@@ -136,9 +138,13 @@ export function CartDrawer({ children }: { children?: React.ReactNode }) {
                   </span>
                 </div>
               </div>
-              <Button className="w-full rounded-2xl py-6 text-lg font-bold shadow-lg shadow-primary/20">
-                Finalizar Compra
-              </Button>
+              <SheetClose asChild>
+                <Link to="/checkout">
+                  <Button className="w-full rounded-2xl py-6 text-lg font-bold shadow-lg shadow-primary/20">
+                    Finalizar Compra
+                  </Button>
+                </Link>
+              </SheetClose>
             </div>
           </SheetFooter>
         )}
