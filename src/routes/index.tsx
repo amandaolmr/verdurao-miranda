@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useCart } from "@/hooks/useCart";
 import { MessageCircle, ShoppingBag, Clock, MapPin, Phone } from "lucide-react";
 import heroImage from "@/assets/hero-produce.jpg";
+import { CartDrawer } from "@/components/CartDrawer";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -135,13 +136,15 @@ function Index() {
         <MessageCircle className="h-8 w-8 fill-current" />
       </a>
 
-      {/* Mobile Floating Cart Indicator (Optional since Navbar has one, but nice for UX) */}
+      {/* Mobile Floating Cart Indicator */}
       {count > 0 && (
         <div className="fixed bottom-6 left-1/2 z-40 w-full max-w-[90%] -translate-x-1/2 px-4 md:hidden">
-          <Button className="w-full gap-2 rounded-2xl bg-accent py-6 text-lg font-bold shadow-2xl">
-            <ShoppingBag className="h-6 w-6" />
-            Ver Carrinho ({count})
-          </Button>
+          <CartDrawer>
+            <Button className="w-full gap-2 rounded-2xl bg-accent py-6 text-lg font-bold shadow-2xl">
+              <ShoppingBag className="h-6 w-6" />
+              Ver Carrinho ({count})
+            </Button>
+          </CartDrawer>
         </div>
       )}
       

@@ -3,6 +3,8 @@ import { Search, ShoppingCart, User, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
+import { CartDrawer } from "./CartDrawer";
+import { useCart } from "@/hooks/useCart";
 
 export function Navbar() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -45,12 +47,16 @@ export function Navbar() {
               <User className="h-5 w-5" />
             </Button>
           </Link>
-          <Button variant="ghost" size="icon" className="relative">
-            <ShoppingCart className="h-5 w-5" />
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-accent-foreground">
-              0
-            </span>
-          </Button>
+          <CartDrawer>
+            <Button variant="ghost" size="icon" className="relative">
+              <ShoppingCart className="h-5 w-5" />
+              {count > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-accent-foreground">
+                  {count}
+                </span>
+              )}
+            </Button>
+          </CartDrawer>
         </div>
       </div>
       
