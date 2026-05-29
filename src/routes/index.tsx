@@ -52,7 +52,11 @@ function Index() {
               <p className="text-lg font-medium text-foreground/80 md:text-xl">
                 O melhor Hortifruti da região entregue na sua porta com um clique.
               </p>
-              <Button size="lg" className="rounded-2xl px-8 py-6 text-lg font-bold shadow-xl shadow-primary/20">
+              <Button 
+                size="lg" 
+                className="rounded-2xl px-8 py-6 text-lg font-bold shadow-xl shadow-primary/20"
+                onClick={() => document.getElementById('catalogo')?.scrollIntoView({ behavior: 'smooth' })}
+              >
                 Comprar Agora
               </Button>
             </div>
@@ -68,7 +72,7 @@ function Index() {
         </section>
 
         {/* Featured Products */}
-        <section className="py-6">
+        <section id="catalogo" className="py-6 scroll-mt-20">
           <div className="container mx-auto px-4">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-xl font-bold tracking-tight">Destaques do Dia</h2>
