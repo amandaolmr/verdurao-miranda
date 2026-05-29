@@ -40,7 +40,7 @@ function Index() {
 
   const handleSelectCategory = (id: string) => {
     navigate({
-      search: (prev) => ({ ...prev, categoria: id || undefined }),
+      search: (prev: IndexSearch) => ({ ...prev, categoria: id || undefined }),
     });
     
     // Scroll to products section
