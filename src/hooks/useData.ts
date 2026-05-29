@@ -10,7 +10,6 @@ export function useCategories() {
         .select("*")
         .eq("ativo", true)
         .order("nome");
-      
       if (error) throw error;
       return data;
     },
@@ -19,33 +18,32 @@ export function useCategories() {
 
 export function useProducts(categoryId?: string) {
   return useQuery({
-    queryKey: ["products", categoryId],
+    queryKey: ["products", categoryId || "all"],
     queryFn: async () => {
       let query = supabase
         .from("produtos")
-        .select(`
-          *,
-          categorias (
-            nome
-          )
-        `)
-        .eq("ativo", true);
-      
-      if (categoryId) {
-        query = query.eq("categoria_id", categoryId);
-      }
-      
-      const { data, error } = await supabase.from("produtos").select("*").eq("ativo", true);
-      // Re-doing query properly with filter if categoryId
-      let finalQuery = supabase.from("produtos").select("*, categorias(nome)").eq("ativo", true);
-      if (categoryId) {
-        finalQuery = finalQuery.eq("categoria_id", categoryId);
-      }
-      
-      const { data: result, error: fetchError } = await finalQuery;
+        .select("*, categorias(nome)")
+        .eq("ativo", true)
+        .order("nome");
+      if (categoryId) query = query.eq("categoria_id", categoryId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+}
 
-      if (fetchError) throw fetchError;
-      return result;
+export function useBairros() {
+  return useQuery({
+    queryKey: ["bairros"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bairros")
+        .select("*")
+        .eq("ativo", true)
+        .order("nome");
+      if (error) throw error;
+      return data;
     },
   });
 }
