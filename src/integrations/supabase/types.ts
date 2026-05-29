@@ -14,7 +14,305 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      administrador: {
+        Row: {
+          criado_em: string
+          email: string
+          id: string
+        }
+        Insert: {
+          criado_em?: string
+          email: string
+          id: string
+        }
+        Update: {
+          criado_em?: string
+          email?: string
+          id?: string
+        }
+        Relationships: []
+      }
+      bairros: {
+        Row: {
+          ativo: boolean
+          criado_em: string
+          id: string
+          nome: string
+          taxa_entrega: number
+        }
+        Insert: {
+          ativo?: boolean
+          criado_em?: string
+          id?: string
+          nome: string
+          taxa_entrega?: number
+        }
+        Update: {
+          ativo?: boolean
+          criado_em?: string
+          id?: string
+          nome?: string
+          taxa_entrega?: number
+        }
+        Relationships: []
+      }
+      categorias: {
+        Row: {
+          ativo: boolean
+          criado_em: string
+          id: string
+          nome: string
+        }
+        Insert: {
+          ativo?: boolean
+          criado_em?: string
+          id?: string
+          nome: string
+        }
+        Update: {
+          ativo?: boolean
+          criado_em?: string
+          id?: string
+          nome?: string
+        }
+        Relationships: []
+      }
+      clientes: {
+        Row: {
+          avatar_url: string | null
+          criado_em: string
+          email: string | null
+          id: string
+          nome: string | null
+          telefone: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          criado_em?: string
+          email?: string | null
+          id: string
+          nome?: string | null
+          telefone?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          criado_em?: string
+          email?: string | null
+          id?: string
+          nome?: string | null
+          telefone?: string | null
+        }
+        Relationships: []
+      }
+      enderecos_cliente: {
+        Row: {
+          bairro_id: string | null
+          cliente_id: string | null
+          complemento: string | null
+          criado_em: string
+          id: string
+          numero: string
+          principal: boolean | null
+          referencia: string | null
+          rua: string
+        }
+        Insert: {
+          bairro_id?: string | null
+          cliente_id?: string | null
+          complemento?: string | null
+          criado_em?: string
+          id?: string
+          numero: string
+          principal?: boolean | null
+          referencia?: string | null
+          rua: string
+        }
+        Update: {
+          bairro_id?: string | null
+          cliente_id?: string | null
+          complemento?: string | null
+          criado_em?: string
+          id?: string
+          numero?: string
+          principal?: boolean | null
+          referencia?: string | null
+          rua?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enderecos_cliente_bairro_id_fkey"
+            columns: ["bairro_id"]
+            isOneToOne: false
+            referencedRelation: "bairros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enderecos_cliente_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      itens_pedido: {
+        Row: {
+          id: string
+          pedido_id: string | null
+          produto_id: string | null
+          quantidade: number
+          valor_total: number
+          valor_unitario: number
+        }
+        Insert: {
+          id?: string
+          pedido_id?: string | null
+          produto_id?: string | null
+          quantidade: number
+          valor_total: number
+          valor_unitario: number
+        }
+        Update: {
+          id?: string
+          pedido_id?: string | null
+          produto_id?: string | null
+          quantidade?: number
+          valor_total?: number
+          valor_unitario?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "itens_pedido_pedido_id_fkey"
+            columns: ["pedido_id"]
+            isOneToOne: false
+            referencedRelation: "pedidos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "itens_pedido_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pedidos: {
+        Row: {
+          bairro_id: string | null
+          cliente_id: string | null
+          complemento: string | null
+          criado_em: string
+          forma_pagamento: string
+          id: string
+          nome_cliente: string
+          numero: string
+          referencia: string | null
+          rua: string
+          status: string
+          subtotal: number
+          taxa_entrega: number
+          telefone: string
+          valor_total: number
+        }
+        Insert: {
+          bairro_id?: string | null
+          cliente_id?: string | null
+          complemento?: string | null
+          criado_em?: string
+          forma_pagamento: string
+          id?: string
+          nome_cliente: string
+          numero: string
+          referencia?: string | null
+          rua: string
+          status?: string
+          subtotal: number
+          taxa_entrega: number
+          telefone: string
+          valor_total: number
+        }
+        Update: {
+          bairro_id?: string | null
+          cliente_id?: string | null
+          complemento?: string | null
+          criado_em?: string
+          forma_pagamento?: string
+          id?: string
+          nome_cliente?: string
+          numero?: string
+          referencia?: string | null
+          rua?: string
+          status?: string
+          subtotal?: number
+          taxa_entrega?: number
+          telefone?: string
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pedidos_bairro_id_fkey"
+            columns: ["bairro_id"]
+            isOneToOne: false
+            referencedRelation: "bairros"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pedidos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      produtos: {
+        Row: {
+          ativo: boolean
+          categoria_id: string | null
+          criado_em: string
+          descricao: string | null
+          estoque: number
+          id: string
+          imagem_url: string | null
+          nome: string
+          preco: number
+          unidade_venda: string
+        }
+        Insert: {
+          ativo?: boolean
+          categoria_id?: string | null
+          criado_em?: string
+          descricao?: string | null
+          estoque?: number
+          id?: string
+          imagem_url?: string | null
+          nome: string
+          preco: number
+          unidade_venda: string
+        }
+        Update: {
+          ativo?: boolean
+          categoria_id?: string | null
+          criado_em?: string
+          descricao?: string | null
+          estoque?: number
+          id?: string
+          imagem_url?: string | null
+          nome?: string
+          preco?: number
+          unidade_venda?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "produtos_categoria_id_fkey"
+            columns: ["categoria_id"]
+            isOneToOne: false
+            referencedRelation: "categorias"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
