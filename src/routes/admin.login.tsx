@@ -12,7 +12,7 @@ export const Route = createFileRoute("/admin/login")({
 });
 
 function AdminLogin() {
-  const [email, setEmail] = useState("");
+  const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -21,6 +21,16 @@ function AdminLogin() {
     e.preventDefault();
     setLoading(true);
     try {
+      // Busca o e-mail correspondente ao nome de usuário via função segura do banco
+      const { data: email, error: rpcError } = await supabase.rpc("get_admin_email", {
+        p_usuario: usuario.trim().toLowerCase(),
+      });
+
+      if (rpcError || !email) {
+        toast.error("Usuário ou senha incorretos.");
+        return;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
@@ -32,13 +42,13 @@ function AdminLogin() {
 
       if (!admin) {
         await supabase.auth.signOut();
-        toast.error("Acesso negado. Usuário não é administrador.");
+        toast.error("Acesso negado.");
         return;
       }
 
       navigate({ to: "/admin" });
     } catch (error: any) {
-      toast.error(error.message || "Erro ao entrar");
+      toast.error("Usuário ou senha incorretos.");
     } finally {
       setLoading(false);
     }
@@ -55,12 +65,13 @@ function AdminLogin() {
         <CardContent>
           <form onSubmit={handleLogin} className="grid gap-4">
             <div>
-              <Label htmlFor="email">E-mail</Label>
+              <Label htmlFor="usuario">Usuário</Label>
               <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="usuario"
+                type="text"
+                value={usuario}
+                onChange={(e) => setUsuario(e.target.value)}
+                autoComplete="username"
                 required
               />
             </div>

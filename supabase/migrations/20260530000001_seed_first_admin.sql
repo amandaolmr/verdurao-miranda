@@ -1,8 +1,8 @@
 -- Execute este script no SQL Editor do Supabase/Lovable
--- Substitua 'seu@email.com' pelo e-mail do administrador
+-- Substitua os valores abaixo pelo e-mail e usuário do administrador
 
-INSERT INTO public.administrador (id, email)
-SELECT id, email
+INSERT INTO public.administrador (id, email, usuario)
+SELECT id, email, 'admin'   -- troque 'admin' pelo nome de usuário desejado
 FROM auth.users
-WHERE email = 'seu@email.com'
-ON CONFLICT (id) DO NOTHING;
+WHERE email = 'seu@email.com'  -- troque pelo e-mail real do administrador
+ON CONFLICT (id) DO UPDATE SET usuario = EXCLUDED.usuario;
