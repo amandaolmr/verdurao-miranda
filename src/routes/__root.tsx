@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 import appCss from "../styles.css?url";
@@ -137,6 +138,26 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+
+  // Detecta hash de erro do Supabase na URL (ex: link de recuperação expirado)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash;
+    if (hash.includes("error=access_denied")) {
+      const params = new URLSearchParams(hash.slice(1));
+      const code = params.get("error_code");
+      const desc = params.get("error_description")?.replace(/\+/g, " ");
+      // Limpa o hash da URL sem recarregar
+      history.replaceState(null, "", window.location.pathname);
+      if (code === "otp_expired") {
+        toast.error("Link expirado. Solicite um novo e-mail de recuperação.");
+      } else {
+        toast.error(desc ?? "Link inválido. Tente novamente.");
+      }
+      router.navigate({ to: "/admin/login" });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Limpeza apenas em erro explícito (ex: token completamente inválido).
   // Sem timeout agressivo — uma sessão Google válida pode levar alguns segundos
