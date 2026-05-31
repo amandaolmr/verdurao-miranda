@@ -10,8 +10,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageCircle, Mail, Lock, Chrome } from "lucide-react";
+import { Mail, Lock, Chrome } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -27,17 +28,16 @@ function LoginPage() {
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: window.location.origin },
-      });
-      if (error) throw error;
-      // página redireciona automaticamente, não resetar isLoading
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao entrar com Google");
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin,
+    });
+    if (result.error) {
+      toast.error("Não foi possível entrar com Google. Tente novamente.");
       setIsLoading(false);
+      return;
     }
+    if (result.redirected) return;
+    navigate({ to: "/" });
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {

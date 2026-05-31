@@ -107,6 +107,57 @@ export type Database = {
         }
         Relationships: []
       }
+      configuracoes_loja: {
+        Row: {
+          atualizado_em: string | null
+          bairro: string | null
+          banner_url: string | null
+          cidade: string | null
+          descricao: string | null
+          horario_funcionamento: string | null
+          id: number
+          logo_url: string | null
+          nome_loja: string
+          numero: string | null
+          rua: string | null
+          telefone: string | null
+          valor_minimo_pedido: number | null
+          whatsapp: string | null
+        }
+        Insert: {
+          atualizado_em?: string | null
+          bairro?: string | null
+          banner_url?: string | null
+          cidade?: string | null
+          descricao?: string | null
+          horario_funcionamento?: string | null
+          id?: number
+          logo_url?: string | null
+          nome_loja?: string
+          numero?: string | null
+          rua?: string | null
+          telefone?: string | null
+          valor_minimo_pedido?: number | null
+          whatsapp?: string | null
+        }
+        Update: {
+          atualizado_em?: string | null
+          bairro?: string | null
+          banner_url?: string | null
+          cidade?: string | null
+          descricao?: string | null
+          horario_funcionamento?: string | null
+          id?: number
+          logo_url?: string | null
+          nome_loja?: string
+          numero?: string | null
+          rua?: string | null
+          telefone?: string | null
+          valor_minimo_pedido?: number | null
+          whatsapp?: string | null
+        }
+        Relationships: []
+      }
       enderecos_cliente: {
         Row: {
           bairro_id: string | null
@@ -209,14 +260,17 @@ export type Database = {
           forma_pagamento: string
           id: string
           nome_cliente: string
-          numero: string
+          numero: string | null
+          precisa_troco: boolean | null
           referencia: string | null
-          rua: string
+          rua: string | null
           status: string
           subtotal: number
           taxa_entrega: number
           telefone: string
+          tipo_recebimento: string
           valor_total: number
+          valor_troco: number | null
         }
         Insert: {
           bairro_id?: string | null
@@ -226,14 +280,17 @@ export type Database = {
           forma_pagamento: string
           id?: string
           nome_cliente: string
-          numero: string
+          numero?: string | null
+          precisa_troco?: boolean | null
           referencia?: string | null
-          rua: string
+          rua?: string | null
           status?: string
           subtotal: number
           taxa_entrega: number
           telefone: string
+          tipo_recebimento?: string
           valor_total: number
+          valor_troco?: number | null
         }
         Update: {
           bairro_id?: string | null
@@ -243,14 +300,17 @@ export type Database = {
           forma_pagamento?: string
           id?: string
           nome_cliente?: string
-          numero?: string
+          numero?: string | null
+          precisa_troco?: boolean | null
           referencia?: string | null
-          rua?: string
+          rua?: string | null
           status?: string
           subtotal?: number
           taxa_entrega?: number
           telefone?: string
+          tipo_recebimento?: string
           valor_total?: number
+          valor_troco?: number | null
         }
         Relationships: [
           {
@@ -279,7 +339,9 @@ export type Database = {
           id: string
           imagem_url: string | null
           nome: string
+          permite_fracionamento: boolean
           preco: number
+          quantidade_minima: number | null
           unidade_venda: string
         }
         Insert: {
@@ -291,7 +353,9 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           nome: string
+          permite_fracionamento?: boolean
           preco: number
+          quantidade_minima?: number | null
           unidade_venda: string
         }
         Update: {
@@ -303,7 +367,9 @@ export type Database = {
           id?: string
           imagem_url?: string | null
           nome?: string
+          permite_fracionamento?: boolean
           preco?: number
+          quantidade_minima?: number | null
           unidade_venda?: string
         }
         Relationships: [

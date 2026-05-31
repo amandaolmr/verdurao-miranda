@@ -245,7 +245,7 @@ function CheckoutPage() {
               complemento: form.complemento || null,
               referencia: form.referencia || null,
               bairro_id: form.bairroId,
-              atualizado_em: new Date().toISOString(),
+              
             })
             .eq("id", existingAddr.id);
         } else {
