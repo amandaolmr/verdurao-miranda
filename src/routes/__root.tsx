@@ -14,7 +14,6 @@ import { supabase } from "@/integrations/supabase/client";
 
 import appCss from "../styles.css?url";
 
-
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -139,43 +138,27 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
 
-  // Limpeza de sessão corrompida no startup (ex: Google OAuth mal configurado).
-  // Se a sessão no localStorage estiver inválida, o Supabase bloqueia initializePromise
-  // e toda chamada supabase.from() fica presa. Detectamos isso com um timeout de 3s
-  // e fazemos signOut local (sem rede) para desbloquear.
+  // Limpeza apenas em erro explícito (ex: token completamente inválido).
+  // Sem timeout agressivo — uma sessão Google válida pode levar alguns segundos
+  // para ser restaurada via refresh token, e o timeout matava sessões legítimas.
   useEffect(() => {
-    let resolved = false;
-
-    const forceLocalSignout = () => {
-      if (!resolved) {
-        resolved = true;
-        supabase.auth.signOut({ scope: "local" }).catch(() => {});
-      }
-    };
-
-    const timeout = setTimeout(forceLocalSignout, 3000);
-
     supabase.auth
       .getSession()
       .then(({ error }) => {
-        clearTimeout(timeout);
         if (error) {
           console.warn("[Auth] Sessão inválida no startup, limpando:", error.message);
-          forceLocalSignout();
-        } else {
-          resolved = true;
+          supabase.auth.signOut({ scope: "local" }).catch(() => {});
         }
       })
       .catch(() => {
-        clearTimeout(timeout);
-        forceLocalSignout();
+        supabase.auth.signOut({ scope: "local" }).catch(() => {});
       });
-
-    return () => clearTimeout(timeout);
   }, []);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       // Apenas reagir a mudanças reais de autenticação. INITIAL_SESSION e
       // TOKEN_REFRESHED disparam com frequência e cancelariam queries em andamento.
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
@@ -187,12 +170,8 @@ function RootComponent() {
             id: u.id,
             email: u.email,
             nome:
-              u.user_metadata?.full_name ||
-              u.user_metadata?.name ||
-              u.user_metadata?.nome ||
-              null,
-            avatar_url:
-              u.user_metadata?.avatar_url || u.user_metadata?.picture || null,
+              u.user_metadata?.full_name || u.user_metadata?.name || u.user_metadata?.nome || null,
+            avatar_url: u.user_metadata?.avatar_url || u.user_metadata?.picture || null,
           },
           { onConflict: "id" },
         );
@@ -212,4 +191,3 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
-

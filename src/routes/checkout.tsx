@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Navbar } from "@/components/Navbar";
 import { useCart } from "@/hooks/useCart";
 import { useBairros } from "@/hooks/useData";
+import { useAuth } from "@/hooks/useAuth";
 import { formatUnidade } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,11 +61,14 @@ function CheckoutPage() {
   const { items, subtotal, clearCart } = useCart();
   const { data: bairros = [] } = useBairros();
   const config = useConfig();
+  const { user, loading: authChecking } = useAuth();
+  const isLoggedIn = !!user;
+  const userId = user?.id ?? null;
+  const userMeta = {
+    nome: user?.user_metadata?.nome ?? user?.user_metadata?.full_name ?? "",
+    telefone: user?.user_metadata?.telefone ?? "",
+  };
   const [submitting, setSubmitting] = useState(false);
-  const [authChecking, setAuthChecking] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [userMeta, setUserMeta] = useState<{ nome?: string; telefone?: string }>({});
   const [enderecos, setEnderecos] = useState<any[]>([]);
   const [selectedAddrId, setSelectedAddrId] = useState<string | null>(null);
   const [editingAddr, setEditingAddr] = useState(false);
@@ -72,17 +76,6 @@ function CheckoutPage() {
   const [precisaTroco, setPrecisaTroco] = useState<"sim" | "nao" | "">("");
   const [valorTroco, setValorTroco] = useState("");
   const [pedidoSucesso, setPedidoSucesso] = useState<{ waUrl?: string } | null>(null);
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsLoggedIn(!!session);
-      setUserId(session?.user?.id ?? null);
-      setUserMeta({
-        nome: session?.user?.user_metadata?.nome ?? "",
-        telefone: session?.user?.user_metadata?.telefone ?? "",
-      });
-      setAuthChecking(false);
-    });
-  }, []);
 
   // Auto-fill form from saved profile + addresses
   useEffect(() => {
