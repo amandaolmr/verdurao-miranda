@@ -139,6 +139,41 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
 
+  // Limpeza de sessão corrompida no startup (ex: Google OAuth mal configurado).
+  // Se a sessão no localStorage estiver inválida, o Supabase bloqueia initializePromise
+  // e toda chamada supabase.from() fica presa. Detectamos isso com um timeout de 3s
+  // e fazemos signOut local (sem rede) para desbloquear.
+  useEffect(() => {
+    let resolved = false;
+
+    const forceLocalSignout = () => {
+      if (!resolved) {
+        resolved = true;
+        supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      }
+    };
+
+    const timeout = setTimeout(forceLocalSignout, 3000);
+
+    supabase.auth
+      .getSession()
+      .then(({ error }) => {
+        clearTimeout(timeout);
+        if (error) {
+          console.warn("[Auth] Sessão inválida no startup, limpando:", error.message);
+          forceLocalSignout();
+        } else {
+          resolved = true;
+        }
+      })
+      .catch(() => {
+        clearTimeout(timeout);
+        forceLocalSignout();
+      });
+
+    return () => clearTimeout(timeout);
+  }, []);
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       // Apenas reagir a mudanças reais de autenticação. INITIAL_SESSION e

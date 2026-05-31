@@ -20,7 +20,6 @@ export function useProducts(categoryId?: string) {
   return useQuery({
     queryKey: ["products", categoryId || "all"],
     queryFn: async () => {
-      console.log("[useProducts] queryFn start", categoryId);
       let query = supabase
         .from("produtos")
         .select("*, categorias(nome)")
@@ -28,7 +27,6 @@ export function useProducts(categoryId?: string) {
         .order("nome");
       if (categoryId) query = query.eq("categoria_id", categoryId);
       const { data, error } = await query;
-      console.log("[useProducts] result", { count: data?.length, error: error?.message });
       if (error) throw error;
       return data;
     },
