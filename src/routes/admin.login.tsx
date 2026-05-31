@@ -59,11 +59,26 @@ function AdminLogin() {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data: email, error: rpcError } = await supabase.rpc("get_admin_email", {
-        p_usuario: usuario.trim().toLowerCase(),
-      });
+      const input = usuario.trim();
+      let email: string | null = null;
 
-      if (rpcError || !email) {
+      if (input.includes("@")) {
+        // Entrada é um e-mail: verifica se existe na tabela administrador
+        const { data } = await supabase
+          .from("administrador")
+          .select("email")
+          .eq("email", input.toLowerCase())
+          .single();
+        email = data?.email ?? null;
+      } else {
+        // Entrada é um nome de usuário: resolve via RPC
+        const { data, error: rpcError } = await supabase.rpc("get_admin_email", {
+          p_usuario: input.toLowerCase(),
+        });
+        if (!rpcError) email = data ?? null;
+      }
+
+      if (!email) {
         toast.error("Usuário não encontrado.");
         return;
       }
@@ -121,7 +136,7 @@ function AdminLogin() {
           </CardTitle>
           {view === "forgot" && (
             <CardDescription className="text-center">
-              Informe seu usuário para receber o link de recuperação.
+              Informe seu usuário ou e-mail para receber o link de recuperação.
             </CardDescription>
           )}
           {view === "reset" && (
@@ -170,10 +185,11 @@ function AdminLogin() {
           {view === "forgot" && (
             <form onSubmit={handleForgot} className="grid gap-4">
               <div>
-                <Label htmlFor="usuario-recuperar">Usuário</Label>
+                <Label htmlFor="usuario-recuperar">Usuário ou e-mail</Label>
                 <Input
                   id="usuario-recuperar"
                   type="text"
+                  placeholder="admin ou seu@email.com"
                   value={usuario}
                   onChange={(e) => setUsuario(e.target.value)}
                   autoComplete="username"
