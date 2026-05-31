@@ -132,7 +132,7 @@ function AccountPage() {
             referencia: addrForm.referencia || null,
             bairro_id: addrForm.bairroId,
             principal: addrForm.principal,
-            atualizado_em: new Date().toISOString(),
+            
           })
           .eq("id", editingId);
       } else {
