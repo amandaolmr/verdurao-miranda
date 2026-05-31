@@ -141,15 +141,23 @@ function RootComponent() {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Apenas reagir a mudanças reais de autenticação. INITIAL_SESSION e
+      // TOKEN_REFRESHED disparam com frequência e cancelariam queries em andamento.
+      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
+
       if (event === "SIGNED_IN" && session?.user) {
-        // Garante registro na tabela de clientes
         const u = session.user;
         await supabase.from("clientes").upsert(
           {
             id: u.id,
             email: u.email,
-            nome: u.user_metadata?.full_name || u.user_metadata?.name || u.user_metadata?.nome || null,
-            avatar_url: u.user_metadata?.avatar_url || u.user_metadata?.picture || null,
+            nome:
+              u.user_metadata?.full_name ||
+              u.user_metadata?.name ||
+              u.user_metadata?.nome ||
+              null,
+            avatar_url:
+              u.user_metadata?.avatar_url || u.user_metadata?.picture || null,
           },
           { onConflict: "id" },
         );
