@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Mail, Lock, User, Chrome } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
+
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -29,6 +29,7 @@ function SignupPage() {
 
   const handleGoogleSignup = async () => {
     setIsLoading(true);
+    const { lovable } = await import("@/integrations/lovable");
     const result = await lovable.auth.signInWithOAuth("google", {
       redirect_uri: window.location.origin,
     });
