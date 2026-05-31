@@ -10,7 +10,7 @@ UPDATE public.administrador
   WHERE usuario IS NULL;
 
 -- Função SECURITY DEFINER: chamável anonimamente, retorna o email correspondente
--- ao usuario informado — sem expor a tabela diretamente.
+-- ao usuario OU email informado — sem expor a tabela diretamente.
 CREATE OR REPLACE FUNCTION public.get_admin_email(p_usuario TEXT)
 RETURNS TEXT
 LANGUAGE plpgsql
@@ -20,10 +20,19 @@ AS $$
 DECLARE
   v_email TEXT;
 BEGIN
-  SELECT email INTO v_email
-  FROM public.administrador
-  WHERE usuario = lower(trim(p_usuario))
-  LIMIT 1;
+  IF position('@' IN p_usuario) > 0 THEN
+    -- Entrada é um e-mail: busca diretamente pelo email
+    SELECT email INTO v_email
+    FROM public.administrador
+    WHERE email = lower(trim(p_usuario))
+    LIMIT 1;
+  ELSE
+    -- Entrada é um nome de usuário: busca pela coluna usuario
+    SELECT email INTO v_email
+    FROM public.administrador
+    WHERE usuario = lower(trim(p_usuario))
+    LIMIT 1;
+  END IF;
   RETURN v_email; -- NULL se não encontrado
 END;
 $$;

@@ -59,26 +59,12 @@ function AdminLogin() {
     e.preventDefault();
     setLoading(true);
     try {
-      const input = usuario.trim();
-      let email: string | null = null;
+      // O RPC aceita tanto username quanto e-mail (lógica no banco via SECURITY DEFINER)
+      const { data: email, error: rpcError } = await supabase.rpc("get_admin_email", {
+        p_usuario: usuario.trim().toLowerCase(),
+      });
 
-      if (input.includes("@")) {
-        // Entrada é um e-mail: verifica se existe na tabela administrador
-        const { data } = await supabase
-          .from("administrador")
-          .select("email")
-          .eq("email", input.toLowerCase())
-          .single();
-        email = data?.email ?? null;
-      } else {
-        // Entrada é um nome de usuário: resolve via RPC
-        const { data, error: rpcError } = await supabase.rpc("get_admin_email", {
-          p_usuario: input.toLowerCase(),
-        });
-        if (!rpcError) email = data ?? null;
-      }
-
-      if (!email) {
+      if (rpcError || !email) {
         toast.error("Usuário não encontrado.");
         return;
       }
@@ -130,7 +116,8 @@ function AdminLogin() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="text-center text-2xl font-black text-primary">
-            Admin <span className="text-accent">
+            Admin{" "}
+            <span className="text-accent">
               {view === "forgot" ? "Recuperar Senha" : view === "reset" ? "Nova Senha" : "Login"}
             </span>
           </CardTitle>
@@ -174,7 +161,10 @@ function AdminLogin() {
               </Button>
               <button
                 type="button"
-                onClick={() => { setView("forgot"); setPassword(""); }}
+                onClick={() => {
+                  setView("forgot");
+                  setPassword("");
+                }}
                 className="text-sm text-muted-foreground hover:text-primary transition-colors text-center"
               >
                 Esqueceu a senha?
