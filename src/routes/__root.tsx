@@ -8,9 +8,12 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 import appCss from "../styles.css?url";
+
 
 function NotFoundComponent() {
   return (
@@ -134,6 +137,28 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const router = useRouter();
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_IN" && session?.user) {
+        // Garante registro na tabela de clientes
+        const u = session.user;
+        await supabase.from("clientes").upsert(
+          {
+            id: u.id,
+            email: u.email,
+            nome: u.user_metadata?.full_name || u.user_metadata?.name || u.user_metadata?.nome || null,
+            avatar_url: u.user_metadata?.avatar_url || u.user_metadata?.picture || null,
+          },
+          { onConflict: "id" },
+        );
+      }
+      router.invalidate();
+      queryClient.invalidateQueries();
+    });
+    return () => subscription.unsubscribe();
+  }, [router, queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -144,3 +169,4 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
+
