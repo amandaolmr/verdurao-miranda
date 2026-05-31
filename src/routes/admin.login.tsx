@@ -22,14 +22,12 @@ function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Detecta quando o usuário clica no link de recuperação do e-mail
+  // Detecta redirecionamento do link de recuperação de senha (flag posta pelo __root.tsx)
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setView("reset");
-      }
-    });
-    return () => subscription.unsubscribe();
+    if (sessionStorage.getItem("password_recovery_pending") === "1") {
+      sessionStorage.removeItem("password_recovery_pending");
+      setView("reset");
+    }
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -71,7 +69,7 @@ function AdminLogin() {
       }
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/admin/login`,
+        redirectTo: window.location.origin,
       });
 
       if (error) throw error;
@@ -79,8 +77,9 @@ function AdminLogin() {
       toast.success("E-mail de recuperação enviado! Verifique sua caixa de entrada.");
       setView("login");
       setUsuario("");
-    } catch {
-      toast.error("Erro ao enviar e-mail de recuperação.");
+    } catch (err: any) {
+      console.error("[Admin] Erro ao enviar e-mail de recuperação:", err);
+      toast.error(err?.message ?? "Erro ao enviar e-mail de recuperação.");
     } finally {
       setLoading(false);
     }

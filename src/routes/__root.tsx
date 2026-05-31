@@ -159,6 +159,14 @@ function RootComponent() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Redireciona para o formulário de redefinição de senha quando o usuário
+      // clica no link de recuperação do e-mail.
+      if (event === "PASSWORD_RECOVERY") {
+        sessionStorage.setItem("password_recovery_pending", "1");
+        router.navigate({ to: "/admin/login" });
+        return;
+      }
+
       // Apenas reagir a mudanças reais de autenticação. INITIAL_SESSION e
       // TOKEN_REFRESHED disparam com frequência e cancelariam queries em andamento.
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
