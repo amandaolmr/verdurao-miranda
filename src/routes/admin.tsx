@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/admin")({
   component: AdminLayout,
@@ -23,7 +24,9 @@ export const Route = createFileRoute("/admin")({
 function AdminLayout() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const [checking, setChecking] = useState(true);
+  // useAuth usa onAuthStateChange (INITIAL_SESSION) — não trava em initializePromise lento
+  const { session, loading: authLoading } = useAuth();
+  const [adminVerified, setAdminVerified] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
   const isLoginPage = pathname === "/admin/login";
@@ -37,36 +40,32 @@ function AdminLayout() {
   };
 
   useEffect(() => {
-    if (isLoginPage) {
-      setChecking(false);
+    if (isLoginPage || authLoading) return;
+
+    if (!session) {
+      navigate({ to: "/admin/login" });
       return;
     }
-    const checkAdmin = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) {
-        navigate({ to: "/admin/login" });
-        return;
-      }
-      const { data: admin } = await supabase
-        .from("administrador")
-        .select("id")
-        .eq("id", session.user.id)
-        .single();
-      if (!admin) {
-        await supabase.auth.signOut();
-        navigate({ to: "/admin/login" });
-        return;
-      }
-      setChecking(false);
-    };
-    checkAdmin();
-  }, [isLoginPage, navigate]);
+
+    // Verifica se o usuário autenticado é um administrador
+    supabase
+      .from("administrador")
+      .select("id")
+      .eq("id", session.user.id)
+      .single()
+      .then(({ data: admin }) => {
+        if (!admin) {
+          supabase.auth.signOut();
+          navigate({ to: "/admin/login" });
+          return;
+        }
+        setAdminVerified(true);
+      });
+  }, [authLoading, session, isLoginPage, navigate]);
 
   // Contador de pedidos pendentes em tempo real
   useEffect(() => {
-    if (checking || isLoginPage) return;
+    if (!adminVerified || isLoginPage) return;
     loadPending();
     const channel = supabase
       .channel("admin-sidebar-pending")
@@ -76,17 +75,27 @@ function AdminLayout() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [checking, isLoginPage]);
+  }, [adminVerified, isLoginPage]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate({ to: "/admin/login" });
   };
 
-  if (checking) return null;
-
   // Página de login: renderiza sem sidebar
   if (isLoginPage) return <Outlet />;
+
+  // Enquanto verifica auth/admin, mostra indicador de carregamento (não tela branca)
+  if (authLoading || !adminVerified) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/30">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <span className="text-sm">Verificando acesso...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-muted/30">
