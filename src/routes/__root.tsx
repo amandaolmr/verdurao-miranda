@@ -156,7 +156,7 @@ function RootComponent() {
       }
       router.navigate({ to: "/admin/login" });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Limpeza apenas em erro explícito (ex: token completamente inválido).
@@ -180,13 +180,8 @@ function RootComponent() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Redireciona para o formulário de redefinição de senha quando o usuário
-      // clica no link de recuperação do e-mail.
-      if (event === "PASSWORD_RECOVERY") {
-        sessionStorage.setItem("password_recovery_pending", "1");
-        router.navigate({ to: "/admin/login" });
-        return;
-      }
+      // PASSWORD_RECOVERY: o usuário acessou /admin/reset-password diretamente
+      // via link do e-mail — a própria rota trata o evento. Nada a fazer aqui.
 
       // Apenas reagir a mudanças reais de autenticação. INITIAL_SESSION e
       // TOKEN_REFRESHED disparam com frequência e cancelariam queries em andamento.

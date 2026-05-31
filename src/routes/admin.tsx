@@ -26,7 +26,7 @@ function AdminLayout() {
   const [checking, setChecking] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const isLoginPage = pathname === "/admin/login";
+  const isLoginPage = pathname === "/admin/login" || pathname === "/admin/reset-password";
 
   const loadPending = async () => {
     const { count } = await supabase
