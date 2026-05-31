@@ -18,6 +18,34 @@ function createSupabaseClient() {
     throw new Error(message);
   }
 
+  // Limpa sessões Google OAuth expiradas do localStorage ANTES de criar o cliente.
+  // Motivo: toda query Supabase chama getSession() internamente, que aguarda
+  // initializePromise. Se há uma sessão Google expirada em localStorage, o Supabase
+  // tenta renovar o token via rede — se Google OAuth não está configurado no projeto,
+  // a chamada trava por 30-60s, bloqueando TODAS as queries de banco de dados.
+  if (typeof window !== 'undefined') {
+    const projectRef = SUPABASE_URL.match(/https?:\/\/([^.]+)\./)?.[1];
+    if (projectRef) {
+      const storageKey = `sb-${projectRef}-auth-token`;
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const provider = parsed?.user?.app_metadata?.provider;
+          const expiresAt: number | undefined = parsed?.expires_at;
+          const isExpired = !expiresAt || expiresAt * 1000 < Date.now();
+          if (provider === 'google' && isExpired) {
+            localStorage.removeItem(storageKey);
+            console.warn('[Supabase] Sessão Google OAuth expirada removida para evitar bloqueio de inicialização.');
+          }
+        }
+      } catch {
+        // Token corrompido (parse falhou) — remover também
+        try { localStorage.removeItem(`sb-${projectRef}-auth-token`); } catch { /* noop */ }
+      }
+    }
+  }
+
   return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: {
       storage: typeof window !== 'undefined' ? localStorage : undefined,

@@ -50,7 +50,9 @@ function AdminLayout() {
         // getSession() aguarda a inicialização completa do Supabase (incluindo
         // renovação de token se expirado) antes de retornar — evita race condition
         // e o problema de INITIAL_SESSION disparar com null enquanto o token renova.
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (cancelled) return;
 
         if (!session) {
