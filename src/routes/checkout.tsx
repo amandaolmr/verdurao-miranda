@@ -30,6 +30,8 @@ import {
   X,
   Truck,
   Store,
+  CheckCircle2,
+  MessageCircle,
 } from "lucide-react";
 import { useConfig } from "@/hooks/useConfig";
 
@@ -69,7 +71,7 @@ function CheckoutPage() {
   const [tipoRecebimento, setTipoRecebimento] = useState<"entrega" | "retirada">("entrega");
   const [precisaTroco, setPrecisaTroco] = useState<"sim" | "nao" | "">("");
   const [valorTroco, setValorTroco] = useState("");
-
+  const [pedidoSucesso, setPedidoSucesso] = useState<{ waUrl?: string } | null>(null);
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsLoggedIn(!!session);
@@ -212,7 +214,7 @@ function CheckoutPage() {
           subtotal,
           taxa_entrega: taxaEntrega,
           valor_total: total,
-          status: "pendente",
+          status: "em_separacao",
         })
         .select()
         .single();
@@ -245,7 +247,6 @@ function CheckoutPage() {
               complemento: form.complemento || null,
               referencia: form.referencia || null,
               bairro_id: form.bairroId,
-              
             })
             .eq("id", existingAddr.id);
         } else {
@@ -262,9 +263,9 @@ function CheckoutPage() {
       }
 
       clearCart();
-      toast.success("Pedido realizado com sucesso!");
 
-      // Enviar pedido no WhatsApp da loja
+      // Monta URL do WhatsApp (não abre automaticamente para evitar bloqueio de popup)
+      let waUrl: string | undefined;
       if (config?.whatsapp) {
         const numero = config.whatsapp.replace(/\D/g, "");
         const fone = numero.startsWith("55") ? numero : `55${numero}`;
@@ -295,9 +296,10 @@ function CheckoutPage() {
               ? "\n*Sem troco necessário*"
               : "";
         const msg = [
-          `*Novo Pedido - ${config.nome_loja || "Verdurão Miranda"}*`,
+          `*${config.nome_loja || "Verdurão Miranda"}*`,
+          `*Pedido #${pedido.id.slice(0, 8).toUpperCase()}*`,
           ``,
-          `*Nome:* ${form.nome}`,
+          `*Cliente:* ${form.nome}`,
           `*Telefone:* ${form.telefone}`,
           ``,
           `*Itens:*`,
@@ -315,10 +317,11 @@ function CheckoutPage() {
         ]
           .filter((l) => l !== null)
           .join("\n");
-        window.open(`https://wa.me/${fone}?text=${encodeURIComponent(msg)}`, "_blank");
+        waUrl = `https://wa.me/${fone}?text=${encodeURIComponent(msg)}`;
       }
 
-      navigate({ to: "/pedidos" });
+      setPedidoSucesso({ waUrl });
+      toast.success("Pedido realizado com sucesso!");
     } catch (err: any) {
       toast.error(err.message || "Erro ao finalizar pedido");
     } finally {
@@ -360,6 +363,41 @@ function CheckoutPage() {
             <Link to="/cadastro">
               <Button variant="outline" className="w-full" size="lg">
                 Criar conta grátis
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (pedidoSucesso) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="container mx-auto px-4 py-16 max-w-md text-center space-y-6">
+          <div className="flex flex-col items-center gap-3">
+            <div className="rounded-full bg-green-100 dark:bg-green-900/30 p-5">
+              <CheckCircle2 className="h-12 w-12 text-green-600" />
+            </div>
+            <h1 className="text-2xl font-black tracking-tight">Pedido realizado!</h1>
+            <p className="text-muted-foreground text-sm">
+              Seu pedido foi recebido. Clique no botão abaixo para enviar os detalhes pelo WhatsApp
+              e confirmar com a loja.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3">
+            {pedidoSucesso.waUrl && (
+              <a href={pedidoSucesso.waUrl} target="_blank" rel="noopener noreferrer">
+                <Button className="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white" size="lg">
+                  <MessageCircle className="h-5 w-5 mr-2" />
+                  Enviar Pedido pelo WhatsApp
+                </Button>
+              </a>
+            )}
+            <Link to="/pedidos">
+              <Button variant="outline" className="w-full" size="lg">
+                Ver meus pedidos
               </Button>
             </Link>
           </div>

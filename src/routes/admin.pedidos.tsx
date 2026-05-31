@@ -196,7 +196,6 @@ function AdminOrders() {
   const [printOrder, setPrintOrder] = useState<any | null>(null);
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "ok" | "error">("connecting");
   const initialLoadDone = useRef(false);
-  const alarmIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = async () => {
     const { data } = await supabase
@@ -215,31 +214,6 @@ function AdminOrders() {
     });
   }, []);
 
-  // Alarme em loop: toca enquanto houver pedidos novos não aceitos
-  useEffect(() => {
-    if (newIds.size > 0) {
-      if (!alarmIntervalRef.current) {
-        playNotificationSound();
-        alarmIntervalRef.current = setInterval(playNotificationSound, 4000);
-      }
-    } else {
-      if (alarmIntervalRef.current) {
-        clearInterval(alarmIntervalRef.current);
-        alarmIntervalRef.current = null;
-      }
-    }
-  }, [newIds]);
-
-  // Limpa alarme ao desmontar
-  useEffect(() => {
-    return () => {
-      if (alarmIntervalRef.current) {
-        clearInterval(alarmIntervalRef.current);
-        alarmIntervalRef.current = null;
-      }
-    };
-  }, []);
-
   // Supabase Realtime: detecta novo pedido
   useEffect(() => {
     const channel = supabase
@@ -249,6 +223,7 @@ function AdminOrders() {
         { event: "INSERT", schema: "public", table: "pedidos" },
         (payload) => {
           if (!initialLoadDone.current) return;
+          playNotificationSound();
           setNewIds((prev) => new Set([...prev, payload.new.id as string]));
           load();
         },
