@@ -21,7 +21,7 @@ function AdminLogin() {
     e.preventDefault();
     setLoading(true);
     try {
-      // Busca o e-mail correspondente ao nome de usuário via função segura do banco
+      // 1. Resolve usuário → e-mail via função segura do banco
       const { data: email, error: rpcError } = await supabase.rpc("get_admin_email", {
         p_usuario: usuario.trim().toLowerCase(),
       });
@@ -31,23 +31,15 @@ function AdminLogin() {
         return;
       }
 
+      // 2. Autentica no Supabase Auth
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
-      const { data: admin } = await supabase
-        .from("administrador")
-        .select("id")
-        .eq("id", data.user.id)
-        .single();
-
-      if (!admin) {
-        await supabase.auth.signOut();
-        toast.error("Acesso negado.");
-        return;
-      }
+      // Marca UID como verificado para admin.tsx pular a consulta redundante
+      sessionStorage.setItem("admin_verified_uid", data.user.id);
 
       navigate({ to: "/admin" });
-    } catch (error: any) {
+    } catch {
       toast.error("Usuário ou senha incorretos.");
     } finally {
       setLoading(false);

@@ -47,9 +47,6 @@ function AdminLayout() {
 
     const check = async () => {
       try {
-        // getSession() aguarda a inicialização completa do Supabase (incluindo
-        // renovação de token se expirado) antes de retornar — evita race condition
-        // e o problema de INITIAL_SESSION disparar com null enquanto o token renova.
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -57,6 +54,13 @@ function AdminLayout() {
 
         if (!session) {
           navigate({ to: "/admin/login" });
+          return;
+        }
+
+        // Se o UID foi verificado recentemente (ex: logo após login), pula o check no banco
+        const cachedUid = sessionStorage.getItem("admin_verified_uid");
+        if (cachedUid === session.user.id) {
+          setChecking(false);
           return;
         }
 
@@ -69,7 +73,7 @@ function AdminLayout() {
         if (cancelled) return;
 
         if (adminError) {
-          // Erro de rede/RLS: não deslogar, apenas mostrar spinner e tentar de novo no próximo mount
+          // Erro de rede/RLS: não deslogar, apenas redirecionar
           console.error("[Admin] Falha ao verificar administrador:", adminError.message);
           navigate({ to: "/admin/login" });
           return;
@@ -81,6 +85,8 @@ function AdminLayout() {
           return;
         }
 
+        // Cacheia para navegações futuras dentro da mesma sessão de aba
+        sessionStorage.setItem("admin_verified_uid", session.user.id);
         setChecking(false);
       } catch (e) {
         console.error("[Admin] Erro inesperado na verificação:", e);
@@ -119,6 +125,7 @@ function AdminLayout() {
   }, [checking, isLoginPage]);
 
   const handleLogout = async () => {
+    sessionStorage.removeItem("admin_verified_uid");
     await supabase.auth.signOut();
     navigate({ to: "/admin/login" });
   };
