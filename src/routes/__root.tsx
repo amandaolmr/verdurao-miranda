@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { CartProvider } from "@/hooks/CartContext";
 import {
   Outlet,
   Link,
@@ -74,17 +75,34 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Lovable App" },
-      { name: "description", content: "Verdurão Miranda is a mobile-first e-commerce app for local produce sales." },
+      {
+        name: "description",
+        content: "Verdurão Miranda is a mobile-first e-commerce app for local produce sales.",
+      },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Verdurão Miranda is a mobile-first e-commerce app for local produce sales." },
+      {
+        property: "og:description",
+        content: "Verdurão Miranda is a mobile-first e-commerce app for local produce sales.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Lovable App" },
-      { name: "twitter:description", content: "Verdurão Miranda is a mobile-first e-commerce app for local produce sales." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/28e27f34-e970-4db9-9e08-512df989c958/id-preview-e44993f8--dfef37b2-499a-4d53-8eac-ee041f105eb3.lovable.app-1780058601210.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/28e27f34-e970-4db9-9e08-512df989c958/id-preview-e44993f8--dfef37b2-499a-4d53-8eac-ee041f105eb3.lovable.app-1780058601210.png" },
+      {
+        name: "twitter:description",
+        content: "Verdurão Miranda is a mobile-first e-commerce app for local produce sales.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/28e27f34-e970-4db9-9e08-512df989c958/id-preview-e44993f8--dfef37b2-499a-4d53-8eac-ee041f105eb3.lovable.app-1780058601210.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/28e27f34-e970-4db9-9e08-512df989c958/id-preview-e44993f8--dfef37b2-499a-4d53-8eac-ee041f105eb3.lovable.app-1780058601210.png",
+      },
     ],
     links: [
       {
@@ -119,8 +137,10 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <CartProvider>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+      </CartProvider>
     </QueryClientProvider>
   );
 }

@@ -2,9 +2,15 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { MessageCircle, Mail, Lock, Chrome } from "lucide-react";
-import { lovable } from "@/integrations/lovable/index";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -22,13 +28,14 @@ function LoginPage() {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin },
       });
-      if (result.error) throw result.error;
+      if (error) throw error;
+      // página redireciona automaticamente, não resetar isLoading
     } catch (error: any) {
       toast.error(error.message || "Erro ao entrar com Google");
-    } finally {
       setIsLoading(false);
     }
   };
@@ -63,8 +70,8 @@ function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="w-full gap-2 py-6 text-base font-bold transition-all hover:bg-muted"
             onClick={handleGoogleLogin}
             disabled={isLoading}
@@ -72,7 +79,7 @@ function LoginPage() {
             <Chrome className="h-5 w-5 text-red-500" />
             Entrar com Google
           </Button>
-          
+
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />

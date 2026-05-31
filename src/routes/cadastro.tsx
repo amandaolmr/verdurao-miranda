@@ -2,9 +2,15 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Mail, Lock, User, Chrome } from "lucide-react";
-import { lovable } from "@/integrations/lovable/index";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -23,13 +29,13 @@ function SignupPage() {
   const handleGoogleSignup = async () => {
     setIsLoading(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin },
       });
-      if (result.error) throw result.error;
+      if (error) throw error;
     } catch (error: any) {
       toast.error(error.message || "Erro ao cadastrar com Google");
-    } finally {
       setIsLoading(false);
     }
   };
@@ -50,7 +56,16 @@ function SignupPage() {
       toast.success("Cadastro realizado! Verifique seu e-mail para confirmar.");
       navigate({ to: "/login" });
     } catch (error: any) {
-      toast.error(error.message || "Erro ao cadastrar");
+      const msg: string = error.message || "";
+      const traducoes: Record<string, string> = {
+        "Password is known to be weak and easy to guess, please choose a different one.":
+          "A senha é muito fraca e fácil de adivinhar. Escolha uma senha mais segura.",
+        "Password should be at least 6 characters.": "A senha deve ter pelo menos 6 caracteres.",
+        "User already registered": "Este e-mail já está cadastrado.",
+        "Invalid email": "E-mail inválido.",
+        "Email not confirmed": "E-mail não confirmado. Verifique sua caixa de entrada.",
+      };
+      toast.error(traducoes[msg] ?? (msg || "Erro ao cadastrar"));
     } finally {
       setIsLoading(false);
     }
@@ -92,21 +107,42 @@ function SignupPage() {
               <Label htmlFor="nome">Nome</Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input id="nome" className="pl-10" value={nome} onChange={(e) => setNome(e.target.value)} required />
+                <Input
+                  id="nome"
+                  className="pl-10"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  required
+                />
               </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="email">E-mail</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input id="email" type="email" className="pl-10" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <Input
+                  id="email"
+                  type="email"
+                  className="pl-10"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="password">Senha</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input id="password" type="password" minLength={6} className="pl-10" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <Input
+                  id="password"
+                  type="password"
+                  minLength={6}
+                  className="pl-10"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
               </div>
             </div>
             <Button type="submit" className="w-full py-6 text-lg font-bold" disabled={isLoading}>
