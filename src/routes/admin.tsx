@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 
 export const Route = createFileRoute("/admin")({
   component: AdminLayout,
@@ -24,9 +23,7 @@ export const Route = createFileRoute("/admin")({
 function AdminLayout() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  // useAuth usa onAuthStateChange (INITIAL_SESSION) — não trava em initializePromise lento
-  const { session, loading: authLoading } = useAuth();
-  const [adminVerified, setAdminVerified] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
   const isLoginPage = pathname === "/admin/login";
@@ -40,32 +37,74 @@ function AdminLayout() {
   };
 
   useEffect(() => {
-    if (isLoginPage || authLoading) return;
-
-    if (!session) {
-      navigate({ to: "/admin/login" });
+    if (isLoginPage) {
+      setChecking(false);
       return;
     }
 
-    // Verifica se o usuário autenticado é um administrador
-    supabase
-      .from("administrador")
-      .select("id")
-      .eq("id", session.user.id)
-      .single()
-      .then(({ data: admin }) => {
-        if (!admin) {
-          supabase.auth.signOut();
+    setChecking(true);
+    let cancelled = false;
+
+    const check = async () => {
+      try {
+        // getSession() aguarda a inicialização completa do Supabase (incluindo
+        // renovação de token se expirado) antes de retornar — evita race condition
+        // e o problema de INITIAL_SESSION disparar com null enquanto o token renova.
+        const { data: { session } } = await supabase.auth.getSession();
+        if (cancelled) return;
+
+        if (!session) {
           navigate({ to: "/admin/login" });
           return;
         }
-        setAdminVerified(true);
-      });
-  }, [authLoading, session, isLoginPage, navigate]);
+
+        const { data: admin, error: adminError } = await supabase
+          .from("administrador")
+          .select("id")
+          .eq("id", session.user.id)
+          .single();
+
+        if (cancelled) return;
+
+        if (adminError) {
+          // Erro de rede/RLS: não deslogar, apenas mostrar spinner e tentar de novo no próximo mount
+          console.error("[Admin] Falha ao verificar administrador:", adminError.message);
+          navigate({ to: "/admin/login" });
+          return;
+        }
+
+        if (!admin) {
+          await supabase.auth.signOut();
+          navigate({ to: "/admin/login" });
+          return;
+        }
+
+        setChecking(false);
+      } catch (e) {
+        console.error("[Admin] Erro inesperado na verificação:", e);
+        if (!cancelled) navigate({ to: "/admin/login" });
+      }
+    };
+
+    // Timeout de 8s como segurança contra initializePromise travado (ex: Google OAuth)
+    const timeout = setTimeout(() => {
+      if (!cancelled) {
+        cancelled = true;
+        navigate({ to: "/admin/login" });
+      }
+    }, 8_000);
+
+    check().finally(() => clearTimeout(timeout));
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [isLoginPage, navigate]);
 
   // Contador de pedidos pendentes em tempo real
   useEffect(() => {
-    if (!adminVerified || isLoginPage) return;
+    if (checking || isLoginPage) return;
     loadPending();
     const channel = supabase
       .channel("admin-sidebar-pending")
@@ -75,7 +114,7 @@ function AdminLayout() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [adminVerified, isLoginPage]);
+  }, [checking, isLoginPage]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -86,7 +125,7 @@ function AdminLayout() {
   if (isLoginPage) return <Outlet />;
 
   // Enquanto verifica auth/admin, mostra indicador de carregamento (não tela branca)
-  if (authLoading || !adminVerified) {
+  if (checking) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted/30">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">

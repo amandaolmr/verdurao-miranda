@@ -23,7 +23,9 @@ export function useAuth(): AuthState {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, newSession) => {
       // INITIAL_SESSION dispara uma vez ao montar, com a sessão restaurada
       // (ou null se não autenticado). Marca loading como false apenas aqui.
       if (event === "INITIAL_SESSION") {
