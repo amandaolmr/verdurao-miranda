@@ -158,7 +158,10 @@ function LoginPage() {
               Cadastre-se
             </Link>
           </p>
-          <Link to="/" className="text-muted-foreground hover:text-primary">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 rounded-full border-2 border-primary/40 px-5 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
+          >
             Continuar como visitante
           </Link>
         </CardFooter>
