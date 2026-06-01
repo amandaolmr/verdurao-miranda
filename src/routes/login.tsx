@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Mail, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useConfig } from "@/hooks/useConfig";
 
 import { useState } from "react";
 import { toast } from "sonner";
@@ -21,6 +22,7 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
+  const config = useConfig();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -62,9 +64,17 @@ function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-secondary/10 px-4 py-12">
       <Card className="w-full max-w-md border-none shadow-xl">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-black text-primary">
-            Verdurão <span className="text-accent">Miranda</span>
-          </CardTitle>
+          {config?.logo_url ? (
+            <img
+              src={config.logo_url}
+              alt={config.nome_loja}
+              className="mx-auto mb-2 h-20 w-auto object-contain"
+            />
+          ) : (
+            <CardTitle className="text-2xl font-black text-primary">
+              Verdurão <span className="text-accent">Miranda</span>
+            </CardTitle>
+          )}
           <CardDescription>
             Entre para acompanhar seus pedidos e comprar mais rápido.
           </CardDescription>
