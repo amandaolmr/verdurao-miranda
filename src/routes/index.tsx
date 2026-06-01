@@ -7,7 +7,15 @@ import { MessageCircle, Clock, MapPin, Phone, RefreshCcw } from "lucide-react";
 import heroImage from "@/assets/hero-produce.jpg";
 import { useCategories, useProducts } from "@/hooks/useData";
 import { useConfig } from "@/hooks/useConfig";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+
+function maskWhatsApp(digits: string): string {
+  const d = digits.replace(/\D/g, "").slice(0, 11);
+  if (d.length === 0) return "";
+  if (d.length <= 2) return `(${d}`;
+  if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
 
 interface IndexSearch {
   categoria?: string;
@@ -36,12 +44,33 @@ function Index() {
   const { categoria: selectedCategoryId } = useSearch({ from: "/" });
   const navigate = useNavigate({ from: "/" });
   const productsSectionRef = useRef<HTMLDivElement>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { data: categories = [], isLoading: loadingCategories } = useCategories();
   const { data: products = [], isLoading: loadingProducts } = useProducts(selectedCategoryId);
   const config = useConfig();
 
+  const handleSearch = (value: string) => {
+    setSearchTerm(value);
+    if (value && selectedCategoryId) {
+      navigate({ search: (prev: IndexSearch) => ({ ...prev, categoria: undefined }) });
+    }
+    if (value && productsSectionRef.current) {
+      const y = productsSectionRef.current.getBoundingClientRect().top + window.pageYOffset - 80;
+      window.scrollTo({ top: y, behavior: "smooth" });
+    }
+  };
+
+  const filteredProducts = searchTerm
+    ? products.filter(
+        (p: any) =>
+          p.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.categorias?.nome?.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+    : products;
+
   const handleSelectCategory = (id: string) => {
+    setSearchTerm("");
     navigate({
       search: (prev: IndexSearch) => ({ ...prev, categoria: id || undefined }),
     });
@@ -59,7 +88,7 @@ function Index() {
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
-      <Navbar />
+      <Navbar searchValue={searchTerm} onSearch={handleSearch} />
 
       <main>
         {/* Hero Section */}
@@ -103,21 +132,32 @@ function Index() {
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-black tracking-tight text-primary">
-                  {selectedCategoryName || "Todos os Produtos"}
+                  {searchTerm
+                    ? `Resultados para "${searchTerm}"`
+                    : selectedCategoryName || "Todos os Produtos"}
                 </h2>
-                {selectedCategoryId && (
+                {searchTerm && (
+                  <p className="text-sm text-muted-foreground">
+                    {filteredProducts.length} produto{filteredProducts.length !== 1 ? "s" : ""}{" "}
+                    encontrado{filteredProducts.length !== 1 ? "s" : ""}
+                  </p>
+                )}
+                {!searchTerm && selectedCategoryId && (
                   <p className="text-sm text-muted-foreground">
                     Mostrando itens em {selectedCategoryName}
                   </p>
                 )}
               </div>
 
-              {selectedCategoryId && (
+              {(selectedCategoryId || searchTerm) && (
                 <Button
                   variant="outline"
                   size="sm"
                   className="rounded-xl border-primary text-primary font-bold gap-2"
-                  onClick={() => handleSelectCategory("")}
+                  onClick={() => {
+                    handleSelectCategory("");
+                    setSearchTerm("");
+                  }}
                 >
                   <RefreshCcw className="h-4 w-4" />
                   Ver Todos
@@ -126,26 +166,31 @@ function Index() {
             </div>
 
             {loadingProducts ? (
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 md:grid-cols-4 md:gap-4 lg:grid-cols-5 xl:grid-cols-6">
                 {[...Array(6)].map((_, i) => (
                   <div key={i} className="aspect-[3/4] rounded-2xl bg-muted animate-pulse" />
                 ))}
               </div>
-            ) : products.length > 0 ? (
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-                {products.map((product: any) => (
+            ) : filteredProducts.length > 0 ? (
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-3 md:grid-cols-4 md:gap-4 lg:grid-cols-5 xl:grid-cols-6">
+                {filteredProducts.map((product: any) => (
                   <ProductCard key={product.id} product={product} />
                 ))}
               </div>
             ) : (
               <div className="text-center py-20 bg-muted/30 rounded-3xl">
                 <p className="text-muted-foreground font-medium">
-                  Nenhum produto encontrado nesta categoria.
+                  {searchTerm
+                    ? `Nenhum produto encontrado para "${searchTerm}".`
+                    : "Nenhum produto encontrado nesta categoria."}
                 </p>
                 <Button
                   variant="link"
                   className="text-primary font-bold mt-2"
-                  onClick={() => handleSelectCategory("")}
+                  onClick={() => {
+                    handleSelectCategory("");
+                    setSearchTerm("");
+                  }}
                 >
                   Limpar filtros
                 </Button>
@@ -208,7 +253,9 @@ function Index() {
                   <p className="text-sm text-muted-foreground">{config.telefone}</p>
                 )}
                 {config?.whatsapp && (
-                  <p className="text-sm text-muted-foreground">WhatsApp: {config.whatsapp}</p>
+                  <p className="text-sm text-muted-foreground">
+                    WhatsApp: {maskWhatsApp(config.whatsapp)}
+                  </p>
                 )}
                 {!config?.telefone && !config?.whatsapp && (
                   <p className="text-sm text-muted-foreground">A definir</p>
@@ -220,14 +267,20 @@ function Index() {
       </main>
 
       {/* WhatsApp Floating Button */}
-      <a
-        href={`https://wa.me/${config?.whatsapp || "5500999999999"}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-24 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-2xl transition-transform hover:scale-110 md:bottom-6"
-      >
-        <MessageCircle className="h-8 w-8 fill-current" />
-      </a>
+      {(() => {
+        const raw = (config?.whatsapp || "5500999999999").replace(/\D/g, "");
+        const waNumber = raw.startsWith("55") ? raw : `55${raw}`;
+        return (
+          <a
+            href={`https://wa.me/${waNumber}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="fixed bottom-24 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-2xl transition-transform hover:scale-110 md:bottom-6"
+          >
+            <MessageCircle className="h-8 w-8 fill-current" />
+          </a>
+        );
+      })()}
 
       {/* Desktop Footer */}
       <footer className="hidden border-t py-12 md:block">

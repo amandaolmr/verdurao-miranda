@@ -42,6 +42,24 @@ function AdminLayout() {
       return;
     }
 
+    // ── Fast path ──────────────────────────────────────────────────────────
+    // Após login, o UID fica em sessionStorage. Libera o painel imediatamente
+    // sem nenhuma chamada de rede, e valida a sessão em background.
+    const cachedUid = sessionStorage.getItem("admin_verified_uid");
+    if (cachedUid) {
+      setChecking(false);
+      // Validação silenciosa: se sessão expirou, redireciona sem tela de loading
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session || session.user.id !== cachedUid) {
+          sessionStorage.removeItem("admin_verified_uid");
+          navigate({ to: "/admin/login" });
+        }
+      });
+      return;
+    }
+
+    // ── Slow path ──────────────────────────────────────────────────────────
+    // Sem cache (ex: aba nova, refresh): verifica sessão + banco.
     setChecking(true);
     let cancelled = false;
 
@@ -57,14 +75,7 @@ function AdminLayout() {
           return;
         }
 
-        // Se o UID foi verificado recentemente (ex: logo após login), pula o check no banco
-        const cachedUid = sessionStorage.getItem("admin_verified_uid");
-        if (cachedUid === session.user.id) {
-          setChecking(false);
-          return;
-        }
-
-        const { data: admin, error: adminError } = await supabase
+        const { data: admin } = await supabase
           .from("administrador")
           .select("id")
           .eq("id", session.user.id)
@@ -72,35 +83,26 @@ function AdminLayout() {
 
         if (cancelled) return;
 
-        if (adminError) {
-          // Erro de rede/RLS: não deslogar, apenas redirecionar
-          console.error("[Admin] Falha ao verificar administrador:", adminError.message);
-          navigate({ to: "/admin/login" });
-          return;
-        }
-
         if (!admin) {
           await supabase.auth.signOut();
           navigate({ to: "/admin/login" });
           return;
         }
 
-        // Cacheia para navegações futuras dentro da mesma sessão de aba
         sessionStorage.setItem("admin_verified_uid", session.user.id);
         setChecking(false);
       } catch (e) {
-        console.error("[Admin] Erro inesperado na verificação:", e);
+        console.error("[Admin] Erro na verificação de acesso:", e);
         if (!cancelled) navigate({ to: "/admin/login" });
       }
     };
 
-    // Timeout de 8s como segurança contra initializePromise travado (ex: Google OAuth)
     const timeout = setTimeout(() => {
       if (!cancelled) {
         cancelled = true;
         navigate({ to: "/admin/login" });
       }
-    }, 8_000);
+    }, 5_000);
 
     check().finally(() => clearTimeout(timeout));
 

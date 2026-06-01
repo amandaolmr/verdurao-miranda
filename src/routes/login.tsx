@@ -28,17 +28,16 @@ function LoginPage() {
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
-    const { lovable } = await import("@/integrations/lovable");
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin },
+      });
+      if (error) throw error;
+    } catch {
       toast.error("Não foi possível entrar com Google. Tente novamente.");
       setIsLoading(false);
-      return;
     }
-    if (result.redirected) return;
-    navigate({ to: "/" });
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {

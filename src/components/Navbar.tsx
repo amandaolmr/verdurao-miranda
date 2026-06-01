@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Search, ShoppingCart, User } from "lucide-react";
+import { Search, ShoppingCart, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
@@ -7,7 +7,12 @@ import { CartDrawer } from "./CartDrawer";
 import { useCart } from "@/hooks/useCart";
 import { useConfig } from "@/hooks/useConfig";
 
-export function Navbar() {
+interface NavbarProps {
+  searchValue?: string;
+  onSearch?: (v: string) => void;
+}
+
+export function Navbar({ searchValue = "", onSearch }: NavbarProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { count } = useCart();
   const config = useConfig();
@@ -34,7 +39,21 @@ export function Navbar() {
         <div className="hidden flex-1 px-8 md:flex">
           <div className="relative w-full max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Buscar frutas, verduras..." className="w-full pl-10" />
+            <Input
+              placeholder="Buscar frutas, verduras..."
+              className="w-full pl-10 pr-8"
+              value={searchValue}
+              onChange={(e) => onSearch?.(e.target.value)}
+            />
+            {searchValue && (
+              <button
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => onSearch?.("")}
+                aria-label="Limpar busca"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -69,7 +88,23 @@ export function Navbar() {
         <div className="border-t p-4 md:hidden">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Buscar produtos..." className="w-full pl-10" autoFocus />
+            <Input
+              placeholder="Buscar produtos..."
+              className="w-full pl-10 pr-8"
+              autoFocus
+              value={searchValue}
+              onChange={(e) => onSearch?.(e.target.value)}
+            />
+            <button
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                onSearch?.("");
+                setIsSearchOpen(false);
+              }}
+              aria-label="Fechar busca"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
         </div>
       )}

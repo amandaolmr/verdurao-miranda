@@ -11,6 +11,15 @@ import { toast } from "sonner";
 import { ImageUpload } from "@/components/ImageUpload";
 import type { ConfigLoja } from "@/hooks/useConfig";
 
+/** Formata dígitos no padrão (DD) 99999-9999 */
+function maskWhatsApp(digits: string): string {
+  const d = digits.replace(/\D/g, "").slice(0, 11);
+  if (d.length === 0) return "";
+  if (d.length <= 2) return `(${d}`;
+  if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
 export const Route = createFileRoute("/admin/configuracoes")({
   component: AdminConfiguracoes,
 });
@@ -69,12 +78,14 @@ function AdminConfiguracoes() {
     }
     setSaving(true);
     try {
-      const { error } = await supabase.from("configuracoes_loja").upsert({
-        id: 1,
-        ...form,
-        valor_minimo_pedido: Number(form.valor_minimo_pedido) || 0,
-        atualizado_em: new Date().toISOString(),
-      });
+      const { error } = await supabase
+        .from("configuracoes_loja")
+        .update({
+          ...form,
+          valor_minimo_pedido: Number(form.valor_minimo_pedido) || 0,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", 1);
       if (error) throw error;
       toast.success("Configurações salvas!");
     } catch (err: any) {
@@ -126,13 +137,12 @@ function AdminConfiguracoes() {
           <div>
             <Label>WhatsApp</Label>
             <Input
-              value={form.whatsapp ?? ""}
-              onChange={(e) => set("whatsapp", e.target.value)}
-              placeholder="5511999999999 (somente números com DDI e DDD)"
+              value={maskWhatsApp(form.whatsapp ?? "")}
+              onChange={(e) => set("whatsapp", e.target.value.replace(/\D/g, "").slice(0, 11))}
+              placeholder="(11) 99999-9999"
+              inputMode="numeric"
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              Formato: 5511999999999 (DDI 55 + DDD + número)
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">DDD + número — ex: (11) 99999-9999</p>
           </div>
           <div>
             <Label>Telefone (opcional)</Label>

@@ -33,6 +33,13 @@ function AdminLogin() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    // Timeout de segurança — evita ficar preso em "Entrando..." para sempre
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+      toast.error("Servidor demorou para responder. Verifique sua conexão e tente novamente.");
+    }, 10_000);
+
     try {
       const { data: email, error: rpcError } = await supabase.rpc("get_admin_email", {
         p_usuario: usuario.trim().toLowerCase(),
@@ -51,6 +58,7 @@ function AdminLogin() {
     } catch {
       toast.error("Usuário ou senha incorretos.");
     } finally {
+      clearTimeout(safetyTimer);
       setLoading(false);
     }
   };

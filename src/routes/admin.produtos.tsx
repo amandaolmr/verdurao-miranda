@@ -28,11 +28,16 @@ export const Route = createFileRoute("/admin/produtos")({
   component: AdminProducts,
 });
 
+const PAGE_SIZE = 10;
+
 function AdminProducts() {
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
   const [open, setOpen] = useState(false);
+  const [filterCat, setFilterCat] = useState("all");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
 
   const load = async () => {
     const [{ data: p }, { data: c }] = await Promise.all([
@@ -43,9 +48,26 @@ function AdminProducts() {
     setCategories(c || []);
   };
 
+  const filtered = products.filter((p) => {
+    const matchCat = filterCat === "all" || p.categoria_id === filterCat;
+    const matchSearch = p.nome.toLowerCase().includes(search.toLowerCase());
+    return matchCat && matchSearch;
+  });
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
   useEffect(() => {
     load();
   }, []);
+
+  const changeFilter = (cat: string) => {
+    setFilterCat(cat);
+    setPage(0);
+  };
+  const changeSearch = (s: string) => {
+    setSearch(s);
+    setPage(0);
+  };
 
   const openNew = () => {
     setEditing({
@@ -115,8 +137,43 @@ function AdminProducts() {
         </Button>
       </div>
 
+      {/* Filtros */}
+      <div className="flex flex-wrap gap-3">
+        <Input
+          placeholder="Buscar produto..."
+          value={search}
+          onChange={(e) => changeSearch(e.target.value)}
+          className="w-full sm:w-60"
+        />
+        <Select value={filterCat} onValueChange={changeFilter}>
+          <SelectTrigger className="w-full sm:w-52">
+            <SelectValue placeholder="Todas as categorias" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas as categorias</SelectItem>
+            {categories.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.nome}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {(filterCat !== "all" || search) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              changeFilter("all");
+              changeSearch("");
+            }}
+          >
+            Limpar filtros
+          </Button>
+        )}
+      </div>
+
       <div className="grid gap-3">
-        {products.map((p) => (
+        {paginated.map((p) => (
           <Card key={p.id}>
             <CardContent className="p-4 flex items-center gap-4">
               <div className="h-14 w-14 rounded-lg bg-muted overflow-hidden">
@@ -140,10 +197,35 @@ function AdminProducts() {
             </CardContent>
           </Card>
         ))}
-        {products.length === 0 && (
-          <p className="text-muted-foreground">Nenhum produto cadastrado.</p>
+        {filtered.length === 0 && (
+          <p className="text-muted-foreground">Nenhum produto encontrado.</p>
         )}
       </div>
+
+      {/* Paginação */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === 0}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            Anterior
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Página {page + 1} de {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages - 1}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Próxima
+          </Button>
+        </div>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

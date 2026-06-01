@@ -175,61 +175,68 @@ export function ProductCard({ product }: ProductCardProps) {
             loading="lazy"
           />
         </div>
-        <CardContent className="p-3">
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-primary uppercase tracking-wider">
+        <CardContent className="p-2 md:p-3">
+          <div className="flex flex-col gap-0.5 md:gap-1">
+            <span className="text-[9px] md:text-[10px] font-normal text-muted-foreground uppercase tracking-wide">
               {product.categorias?.nome || "Hortifruti"}
             </span>
-            <h3 className="line-clamp-1 text-sm font-bold">{product.nome}</h3>
-            <span className="text-lg font-black text-primary mt-1">
+            <h3 className="line-clamp-2 text-[13px] md:text-sm font-semibold leading-tight">
+              {product.nome}
+            </h3>
+            <span className="text-sm md:text-lg font-black text-primary mt-0.5 md:mt-1">
               R$ {product.preco.toFixed(2).replace(".", ",")}
-              <span className="text-xs font-normal text-muted-foreground ml-1">
+              <span className="text-[9px] md:text-xs font-normal text-muted-foreground ml-0.5">
                 / {formatUnidade(product.unidade_venda)}
               </span>
             </span>
             {product.descricao && (
-              <p className="line-clamp-2 text-[10px] leading-tight text-muted-foreground mt-1">
+              <p className="hidden md:line-clamp-2 text-[10px] leading-tight text-muted-foreground mt-1">
                 {product.descricao}
               </p>
             )}
           </div>
         </CardContent>
-        <CardFooter className="p-3 pt-0">
+        <CardFooter className="p-2 pt-0 md:p-3 md:pt-0">
           {isFractional ? (
             <Button
-              className="w-full gap-2 rounded-xl bg-primary hover:bg-primary/90 font-bold"
+              className="w-full gap-1 rounded-lg md:rounded-xl md:gap-2 bg-primary hover:bg-primary/90 font-bold h-7 text-xs md:h-9 md:text-sm"
               onClick={handleAdicionar}
             >
-              <Plus className="h-4 w-4" />
-              {cartQty > 0 ? formatQtyDisplay(cartQty, product.unidade_venda) : "Adicionar"}
+              <Plus className="h-3 w-3 md:h-4 md:w-4" />
+              {cartQty > 0 ? (
+                formatQtyDisplay(cartQty, product.unidade_venda)
+              ) : (
+                <span className="hidden sm:inline">Adicionar</span>
+              )}
+              {cartQty === 0 && <span className="sm:hidden">Add</span>}
             </Button>
           ) : cartQty > 0 ? (
-            <div className="flex w-full items-center rounded-xl border bg-muted/50">
+            <div className="flex w-full items-center rounded-lg md:rounded-xl border bg-muted/50">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 shrink-0 rounded-l-xl"
+                className="h-7 w-7 md:h-9 md:w-9 shrink-0 rounded-l-lg md:rounded-l-xl"
                 onClick={() => updateQuantity(product.id, -1)}
               >
-                <Minus className="h-4 w-4" />
+                <Minus className="h-3 w-3 md:h-4 md:w-4" />
               </Button>
-              <span className="flex-1 text-center text-sm font-bold">{cartQty}</span>
+              <span className="flex-1 text-center text-xs md:text-sm font-bold">{cartQty}</span>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 shrink-0 rounded-r-xl"
+                className="h-7 w-7 md:h-9 md:w-9 shrink-0 rounded-r-lg md:rounded-r-xl"
                 onClick={() => updateQuantity(product.id, 1)}
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-3 w-3 md:h-4 md:w-4" />
               </Button>
             </div>
           ) : (
             <Button
-              className="w-full gap-2 rounded-xl bg-primary hover:bg-primary/90 font-bold"
+              className="w-full gap-1 rounded-lg md:rounded-xl md:gap-2 bg-primary hover:bg-primary/90 font-bold h-7 text-xs md:h-9 md:text-sm"
               onClick={handleAdicionar}
             >
-              <Plus className="h-4 w-4" />
-              Adicionar
+              <Plus className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden xs:inline">Adicionar</span>
             </Button>
           )}
         </CardFooter>

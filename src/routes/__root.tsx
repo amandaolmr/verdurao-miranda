@@ -77,13 +77,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
+      { title: "Verdurão Miranda" },
       {
         name: "description",
-        content: "Verdurão Miranda is a mobile-first e-commerce app for local produce sales.",
+        content: "Verdurão Miranda — hortifruti fresquinho com entrega no seu bairro.",
       },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
+      { name: "author", content: "Verdurão Miranda" },
+      { property: "og:title", content: "Verdurão Miranda" },
       {
         property: "og:description",
         content: "Verdurão Miranda is a mobile-first e-commerce app for local produce sales.",
@@ -91,7 +91,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Lovable App" },
+      { name: "twitter:title", content: "Verdurão Miranda" },
       {
         name: "twitter:description",
         content: "Verdurão Miranda is a mobile-first e-commerce app for local produce sales.",
@@ -108,6 +108,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
     ],
     links: [
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
       {
         rel: "stylesheet",
         href: appCss,
@@ -176,6 +177,27 @@ function RootComponent() {
       });
   }, []);
 
+  // Favicon dinâmico — usa logo_url cadastrada nas configurações da loja
+  useEffect(() => {
+    supabase
+      .from("configuracoes_loja")
+      .select("logo_url")
+      .eq("id", 1)
+      .single()
+      .then(({ data }) => {
+        if (!data?.logo_url) return;
+        let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+        if (!link) {
+          link = document.createElement("link");
+          link.rel = "icon";
+          document.head.appendChild(link);
+        }
+        link.href = data.logo_url;
+        // Remove type fixo para o browser detectar pelo conteúdo da URL
+        link.removeAttribute("type");
+      });
+  }, []);
+
   useEffect(() => {
     const {
       data: { subscription },
@@ -188,17 +210,25 @@ function RootComponent() {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
 
       if (event === "SIGNED_IN" && session?.user) {
-        const u = session.user;
-        await supabase.from("clientes").upsert(
-          {
-            id: u.id,
-            email: u.email,
-            nome:
-              u.user_metadata?.full_name || u.user_metadata?.name || u.user_metadata?.nome || null,
-            avatar_url: u.user_metadata?.avatar_url || u.user_metadata?.picture || null,
-          },
-          { onConflict: "id" },
-        );
+        // Não registrar admin na tabela de clientes
+        const isAdminPath =
+          typeof window !== "undefined" && window.location.pathname.startsWith("/admin");
+        if (!isAdminPath) {
+          const u = session.user;
+          await supabase.from("clientes").upsert(
+            {
+              id: u.id,
+              email: u.email,
+              nome:
+                u.user_metadata?.full_name ||
+                u.user_metadata?.name ||
+                u.user_metadata?.nome ||
+                null,
+              avatar_url: u.user_metadata?.avatar_url || u.user_metadata?.picture || null,
+            },
+            { onConflict: "id" },
+          );
+        }
       }
       router.invalidate();
       queryClient.invalidateQueries();

@@ -9,6 +9,7 @@ export function useCategories() {
         .from("categorias")
         .select("*")
         .eq("ativo", true)
+        .order("ordem", { ascending: true, nullsFirst: false })
         .order("nome");
       if (error) throw error;
       return data;
