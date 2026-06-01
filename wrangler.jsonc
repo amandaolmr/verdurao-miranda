@@ -5,9 +5,9 @@
   "compatibility_flags": ["nodejs_compat"],
   "main": "dist/server/server.js",
   "assets": {
-    "directory": "dist/client"
+    "directory": "dist/client",
   },
   "observability": {
-    "enabled": true
-  }
+    "enabled": true,
+  },
 }
