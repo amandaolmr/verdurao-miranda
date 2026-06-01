@@ -30,22 +30,28 @@ function OrdersPage() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.auth.getUser();
-      const uid = data.user?.id ?? null;
-      setUserId(uid);
-      if (!uid) {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const uid = sessionData.session?.user?.id ?? null;
+        setUserId(uid);
+        if (!uid) {
+          setLoading(false);
+          return;
+        }
+        const { data: pedidos, error } = await supabase
+          .from("pedidos")
+          .select(
+            "*, itens_pedido(*, produtos(id, nome, preco, unidade_venda, imagem_url, permite_fracionamento, quantidade_minima))",
+          )
+          .eq("cliente_id", uid)
+          .order("criado_em", { ascending: false });
+        if (error) toast.error("Erro ao carregar pedidos.");
+        setOrders(pedidos || []);
+      } catch {
+        toast.error("Não foi possível carregar seus pedidos.");
+      } finally {
         setLoading(false);
-        return;
       }
-      const { data: pedidos } = await supabase
-        .from("pedidos")
-        .select(
-          "*, itens_pedido(*, produtos(id, nome, preco, unidade_venda, imagem_url, permite_fracionamento, quantidade_minima))",
-        )
-        .eq("cliente_id", uid)
-        .order("criado_em", { ascending: false });
-      setOrders(pedidos || []);
-      setLoading(false);
     })();
   }, []);
 
