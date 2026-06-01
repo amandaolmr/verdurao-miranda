@@ -13,6 +13,7 @@ import {
 import { Mail, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useConfig } from "@/hooks/useConfig";
+import logoLocal from "@/assets/verdurão miranda - logo.png";
 
 import { useState } from "react";
 import { toast } from "sonner";
@@ -64,17 +65,11 @@ function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-secondary/10 px-4 py-12">
       <Card className="w-full max-w-md border-none shadow-xl">
         <CardHeader className="space-y-1 text-center">
-          {config?.logo_url ? (
-            <img
-              src={config.logo_url}
-              alt={config.nome_loja ?? "Logo"}
+          <img
+              src={config?.logo_url ?? logoLocal}
+              alt={config?.nome_loja ?? "Verdurão Miranda"}
               className="mx-auto mb-2 h-24 w-auto object-contain"
             />
-          ) : (
-            <p className="text-2xl font-black text-primary">
-              {config?.nome_loja ?? "Verdurão Miranda"}
-            </p>
-          )}
           <CardDescription>
             Entre para acompanhar seus pedidos e comprar mais rápido.
           </CardDescription>
