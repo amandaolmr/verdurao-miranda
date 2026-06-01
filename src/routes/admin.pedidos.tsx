@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Printer, CheckCircle } from "lucide-react";
+import { Printer, CheckCircle, X } from "lucide-react";
 import { useConfig } from "@/hooks/useConfig";
 
 export const Route = createFileRoute("/admin/pedidos")({
@@ -36,12 +36,31 @@ const PAGAMENTO_LABEL: Record<string, string> = {
   dinheiro: "Dinheiro",
 };
 
-function playNotificationSound() {
-  try {
-    const AudioCtx =
+let _audioCtx: AudioContext | null = null;
+
+function getAudioCtx(): AudioContext {
+  if (!_audioCtx) {
+    const AC =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const ctx = new AudioCtx();
+    _audioCtx = new AC();
+  }
+  return _audioCtx;
+}
+
+function unlockAudio() {
+  try {
+    const ctx = getAudioCtx();
+    if (ctx.state === "suspended") ctx.resume();
+  } catch {
+    /* ignore */
+  }
+}
+
+function playNotificationSound() {
+  try {
+    const ctx = getAudioCtx();
+    if (ctx.state === "suspended") ctx.resume();
     const beep = (freq: number, start: number, dur: number) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -58,7 +77,7 @@ function playNotificationSound() {
     beep(1100, 0.22, 0.18);
     beep(880, 0.44, 0.35);
   } catch {
-    /* browser may block AudioContext without prior user gesture */
+    /* ignore */
   }
 }
 
@@ -225,6 +244,10 @@ function AdminOrders() {
           if (!initialLoadDone.current) return;
           playNotificationSound();
           setNewIds((prev) => new Set([...prev, payload.new.id as string]));
+          toast("🛒 Novo pedido recebido!", {
+            description: "Um novo pedido aguarda sua aceitação.",
+            duration: 20000,
+          });
           load();
         },
       )
@@ -262,6 +285,16 @@ function AdminOrders() {
   };
 
   const nomeLoja = config?.nome_loja || "Verdurão Miranda";
+
+  // Desbloqueia AudioContext na primeira interação do usuário
+  useEffect(() => {
+    document.addEventListener("click", unlockAudio, { once: true });
+    document.addEventListener("touchstart", unlockAudio, { once: true });
+    return () => {
+      document.removeEventListener("click", unlockAudio);
+      document.removeEventListener("touchstart", unlockAudio);
+    };
+  }, []);
 
   return (
     <>
@@ -312,7 +345,11 @@ function AdminOrders() {
                 <Card
                   key={o.id}
                   className={
-                    isNew ? "border-2 border-green-500 bg-green-50/60 dark:bg-green-950/20" : ""
+                    o.status === "pendente"
+                      ? "border-2 border-orange-500 bg-orange-50/60 dark:bg-orange-950/20"
+                      : isNew
+                        ? "border-2 border-green-500 bg-green-50/60 dark:bg-green-950/20"
+                        : ""
                   }
                 >
                   <CardContent className="p-4 space-y-3">
@@ -325,7 +362,12 @@ function AdminOrders() {
                               #{o.id.slice(0, 8)}
                             </span>
                           </p>
-                          {isNew && (
+                          {o.status === "pendente" && (
+                            <Badge className="bg-orange-500 text-white text-xs animate-pulse">
+                              Aguardando Aceitação
+                            </Badge>
+                          )}
+                          {isNew && o.status !== "pendente" && (
                             <Badge className="bg-green-500 text-white text-xs animate-pulse">
                               Novo Pedido
                             </Badge>
@@ -360,40 +402,53 @@ function AdminOrders() {
                               : "Não"}
                           </Badge>
                         )}
-                        <Select value={o.status} onValueChange={(v) => updateStatus(o.id, v)}>
-                          <SelectTrigger className="w-44">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {STATUS.map((s) => (
-                              <SelectItem key={s} value={s}>
-                                {STATUS_LABEL[s]}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {(isNew || o.status === "pendente") && (
-                          <Button
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700 text-white"
-                            onClick={async () => {
-                              await updateStatus(o.id, "em_separacao");
-                              handlePrint(o);
-                            }}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Aceitar
-                          </Button>
+                        {o.status === "pendente" ? (
+                          <>
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                              onClick={async () => {
+                                await updateStatus(o.id, "em_separacao");
+                                handlePrint(o);
+                              }}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              Aceitar Pedido
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => updateStatus(o.id, "cancelado")}
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              Recusar
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Select value={o.status} onValueChange={(v) => updateStatus(o.id, v)}>
+                              <SelectTrigger className="w-44">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {STATUS.filter((s) => s !== "pendente").map((s) => (
+                                  <SelectItem key={s} value={s}>
+                                    {STATUS_LABEL[s]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handlePrint(o)}
+                              title="Imprimir pedido"
+                            >
+                              <Printer className="h-4 w-4 mr-1" />
+                              Imprimir
+                            </Button>
+                          </>
                         )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handlePrint(o)}
-                          title="Imprimir pedido"
-                        >
-                          <Printer className="h-4 w-4 mr-1" />
-                          Imprimir
-                        </Button>
                       </div>
                     </div>
 

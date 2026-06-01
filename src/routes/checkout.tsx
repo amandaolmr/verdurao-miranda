@@ -207,7 +207,7 @@ function CheckoutPage() {
           subtotal,
           taxa_entrega: taxaEntrega,
           valor_total: total,
-          status: "em_separacao",
+          status: "pendente",
         })
         .select()
         .single();
