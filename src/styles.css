@@ -83,7 +83,7 @@
   --border: oklch(0.88 0.03 140);
   --input: oklch(0.88 0.03 140);
   --ring: oklch(0.65 0.22 145);
-  
+
   --chart-1: oklch(0.65 0.22 145);
   --chart-2: oklch(0.7 0.18 45);
   --chart-3: oklch(0.55 0.18 25);
@@ -130,5 +130,16 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+  }
+}
+
+/* ── Impressão: oculta a interface administrativa ao imprimir direto na página ── */
+@media print {
+  [data-sidebar],
+  aside,
+  nav,
+  header,
+  .no-print {
+    display: none !important;
   }
 }
