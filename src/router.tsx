@@ -11,6 +11,9 @@ export const getRouter = () => {
         retry: 1,
         retryDelay: 1000,
         staleTime: 30_000, // 30 segundos — evita refetches desnecessários
+        // Executa queries mesmo quando navigator.onLine=false (Safari iOS em
+        // segundo plano pode reportar offline incorretamente).
+        networkMode: "always",
       },
     },
   });

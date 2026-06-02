@@ -53,6 +53,7 @@ function AccountPage() {
   const { data: bairros = [] } = useBairros();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(false);
   const [activeSection, setActiveSection] = useState<null | "enderecos">(null);
 
   // Addresses state
@@ -63,16 +64,46 @@ function AccountPage() {
   const [savingAddr, setSavingAddr] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
+    console.log("[minha-conta] LOADING START");
+
+    const safetyTimer = setTimeout(() => {
+      console.warn("[minha-conta] Timeout (10s) ao carregar usuário — forçando loading=false");
+      console.log("[minha-conta] LOADING END (timeout)");
+      setAuthError(true);
       setLoading(false);
-    });
+    }, 10_000);
+
+    supabase.auth
+      .getUser()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("[minha-conta] Erro ao carregar usuário:", error.message);
+        }
+        console.log(
+          "[minha-conta] SESSION",
+          data.user ? { id: data.user.id, email: data.user.email } : null,
+        );
+        console.log("[minha-conta] USER", data.user ?? null);
+        setUser(data.user);
+      })
+      .catch((err) => {
+        console.error("[minha-conta] Erro inesperado ao carregar usuário:", err);
+      })
+      .finally(() => {
+        clearTimeout(safetyTimer);
+        console.log("[minha-conta] LOADING END");
+        setLoading(false);
+      });
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_e, session) => {
       setUser(session?.user ?? null);
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(safetyTimer);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loadEnderecos = async (uid: string) => {
@@ -132,7 +163,6 @@ function AccountPage() {
             referencia: addrForm.referencia || null,
             bairro_id: addrForm.bairroId,
             principal: addrForm.principal,
-            
           })
           .eq("id", editingId);
       } else {
@@ -182,6 +212,23 @@ function AccountPage() {
       <div className="min-h-screen bg-background">
         <Navbar />
         <div className="container mx-auto p-8 text-center text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
+
+  if (authError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="container mx-auto px-4 py-12 max-w-md text-center space-y-4">
+          <h1 className="text-2xl font-bold">Não foi possível carregar</h1>
+          <p className="text-muted-foreground">
+            Houve um problema ao verificar sua sessão. Por favor, entre novamente.
+          </p>
+          <Link to="/login">
+            <Button className="w-full">Entrar novamente</Button>
+          </Link>
+        </div>
       </div>
     );
   }

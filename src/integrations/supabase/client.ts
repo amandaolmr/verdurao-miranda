@@ -19,10 +19,16 @@ function createSupabaseClient() {
     throw new Error(message);
   }
 
-  // Limpa sessões expiradas do localStorage ANTES de criar o cliente.
-  // Motivo: toda query Supabase chama getSession() internamente, que aguarda
-  // initializePromise. Se há uma sessão expirada sem refresh token válido,
-  // o Supabase trava por 30-60s bloqueando TODAS as queries de banco de dados.
+  // ─── Limpeza preventiva de sessão stale ──────────────────────────────────
+  // MOTIVO: toda query Supabase aguarda `initializePromise` internamente.
+  // Se o access_token está expirado, o Supabase tenta renovar via refresh_token.
+  // No Safari/iOS, essa chamada de rede pode travar INDEFINIDAMENTE quando:
+  //   • a rede está indisponível (app em segundo plano, sem sinal)
+  //   • o refresh_token foi revogado pelo Google
+  // Isso bloqueia TODAS as queries — produtos, categorias, pedidos, etc.
+  //
+  // Solução: remover a sessão stale ANTES de criar o cliente, forçando start
+  // sem sessão. O usuário precisará fazer login novamente, mas o app não trava.
   if (typeof window !== "undefined") {
     const projectRef = SUPABASE_URL.match(/https?:\/\/([^.]+)\./)?.[1];
     if (projectRef) {
@@ -31,19 +37,30 @@ function createSupabaseClient() {
         const raw = localStorage.getItem(storageKey);
         if (raw) {
           const parsed = JSON.parse(raw);
-          // Refresh token expirado ou ausente → remover sessão stale
           const refreshToken: string | undefined = parsed?.refresh_token;
-          // O access token expira em 1h mas o refresh dura semanas.
-          // Sessões sem refresh_token não podem ser renovadas → travam initializePromise.
+          const expiresAt: number | undefined = parsed?.expires_at;
+          const now = Math.floor(Date.now() / 1000);
+
           if (!refreshToken) {
+            // Sem refresh_token: não pode renovar → remove
             localStorage.removeItem(storageKey);
-            console.warn("[Supabase] Sessão sem refresh_token removida para evitar bloqueio.");
+            console.warn("[Supabase] Sessão sem refresh_token removida (evita bloqueio).");
+          } else if (expiresAt !== undefined && expiresAt < now) {
+            // Access token expirado → Supabase tentaria refresh na inicialização.
+            // No Safari/iOS essa chamada pode travar indefinidamente.
+            // Removemos para evitar o bloqueio — usuário fará login novamente.
+            localStorage.removeItem(storageKey);
+            console.warn(
+              "[Supabase] Token expirado removido para evitar bloqueio de initializePromise.",
+              { expiresAt, now, diff: now - expiresAt },
+            );
           }
         }
       } catch {
-        // Token corrompido (parse falhou) — remover também
+        // Token corrompido (JSON inválido) — remover
         try {
           localStorage.removeItem(`sb-${projectRef}-auth-token`);
+          console.warn("[Supabase] Token corrompido removido.");
         } catch {
           /* noop */
         }
@@ -56,6 +73,27 @@ function createSupabaseClient() {
       storage: typeof window !== "undefined" ? localStorage : undefined,
       persistSession: true,
       autoRefreshToken: true,
+    },
+    global: {
+      // ─── Timeout para chamadas de autenticação (/auth/v1/) ────────────
+      // Sem esse timeout, initializePromise pode travar para sempre no Safari/iOS
+      // quando a rede está indisponível durante a renovação do token.
+      // Após 10s a requisição é abortada → initializePromise resolve com erro
+      // → session é removida → app inicia sem sessão (em vez de travar).
+      fetch: (url, options = {}) => {
+        const isAuthCall = typeof url === "string" && url.includes("/auth/v1/");
+        if (!isAuthCall) return fetch(url, options);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          controller.abort();
+          console.warn("[Supabase] Auth request abortado por timeout (10s):", url);
+        }, 10_000);
+
+        return fetch(url, { ...options, signal: controller.signal }).finally(() =>
+          clearTimeout(timeoutId),
+        );
+      },
     },
   });
 }

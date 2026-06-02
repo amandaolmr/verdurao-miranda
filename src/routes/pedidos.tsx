@@ -29,13 +29,24 @@ function OrdersPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    console.log("[pedidos] LOADING START");
+
+    // Timeout de segurança: se getSession() travar (ex: initializePromise pendente),
+    // encerra o loading após 12s para não ficar preso indefinidamente.
+    const safetyTimer = setTimeout(() => {
+      console.warn("[pedidos] Timeout (12s) — forçando loading=false");
+      setLoading(false);
+    }, 12_000);
+
     (async () => {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const uid = sessionData.session?.user?.id ?? null;
+        console.log("[pedidos] SESSION", sessionData.session);
+        console.log("[pedidos] USER", sessionData.session?.user ?? null);
         setUserId(uid);
         if (!uid) {
-          setLoading(false);
+          console.log("[pedidos] Usuário não autenticado");
           return;
         }
         const { data: pedidos, error } = await supabase
@@ -45,14 +56,22 @@ function OrdersPage() {
           )
           .eq("cliente_id", uid)
           .order("criado_em", { ascending: false });
-        if (error) toast.error("Erro ao carregar pedidos.");
+        if (error) {
+          console.error("[pedidos] Erro ao carregar pedidos:", error.message);
+          toast.error("Erro ao carregar pedidos.");
+        }
         setOrders(pedidos || []);
-      } catch {
+      } catch (err) {
+        console.error("[pedidos] Erro inesperado:", err);
         toast.error("Não foi possível carregar seus pedidos.");
       } finally {
+        clearTimeout(safetyTimer);
+        console.log("[pedidos] LOADING END");
         setLoading(false);
       }
     })();
+
+    return () => clearTimeout(safetyTimer);
   }, []);
 
   const handleRepeat = (order: any) => {
