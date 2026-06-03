@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Navbar } from "@/components/Navbar";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,57 +23,37 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function OrdersPage() {
+  // useAuth já resolveu a sessão (com safety timer de 10s).
+  // Não chamamos getSession() aqui para evitar bloquear em initializePromise.
+  const { user, loading: authLoading } = useAuth();
   const [orders, setOrders] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [ordersLoading, setOrdersLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
   const { addToCart, clearCart } = useCart();
   const navigate = useNavigate();
 
-  // Ref para evitar que chamadas duplicadas (visibilitychange + mount) se sobreponham
-  const loadingRef = useRef(false);
+  // loading combinado: espera auth resolver, depois espera query
+  const loading = authLoading || ordersLoading;
 
-  async function loadOrders() {
-    if (loadingRef.current) return;
-    loadingRef.current = true;
+  // Ref para o user.id atual — usado no visibilitychange sem precisar
+  // re-registrar o listener quando o user muda.
+  const userIdRef = useRef<string | null>(null);
+  userIdRef.current = user?.id ?? null;
 
-    setLoading(true);
+  // Mutex: evita chamadas concorrentes
+  const fetchingRef = useRef(false);
+
+  async function fetchOrders(uid: string) {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
+
+    setOrdersLoading(true);
     setLoadError(false);
     setErrorMessage(null);
     console.log("[pedidos] LOADING START");
 
-    // Timeout de segurança de 10s: garante que a página nunca fica
-    // presa indefinidamente se getSession() ou a query travarem.
-    const safetyTimer = setTimeout(() => {
-      console.warn("[pedidos] Timeout (10s) — encerrando loading com erro");
-      setLoadError(true);
-      setLoading(false);
-      loadingRef.current = false;
-    }, 10_000);
-
     try {
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        console.error("[pedidos]", sessionError);
-        throw sessionError;
-      }
-
-      console.log("SESSION", session);
-      console.log("USER", session?.user?.id ?? null);
-
-      const uid = session?.user?.id ?? null;
-      setUserId(uid);
-
-      if (!uid) {
-        console.log("[pedidos] Usuário não autenticado — exibindo tela de login");
-        return;
-      }
-
       console.log("[pedidos] PEDIDOS QUERY START");
       const { data: pedidos, error } = await supabase
         .from("pedidos")
@@ -85,9 +66,7 @@ function OrdersPage() {
       console.log("PEDIDOS_DATA", pedidos);
       console.error("PEDIDOS_ERROR", error);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       setOrders(pedidos || []);
     } catch (err: any) {
@@ -95,29 +74,30 @@ function OrdersPage() {
       setLoadError(true);
       setErrorMessage(err?.message ?? String(err) ?? "Erro desconhecido");
     } finally {
-      clearTimeout(safetyTimer);
       console.log("[pedidos] LOADING END");
-      setLoading(false);
-      loadingRef.current = false;
+      setOrdersLoading(false);
+      fetchingRef.current = false;
     }
   }
 
-  // Carrega ao montar
+  // Dispara a query assim que o auth resolver (authLoading false → user disponível)
   useEffect(() => {
-    loadOrders();
+    if (authLoading) return;
+    if (!user) return; // mostrará tela de login
+    console.log("SESSION", user);
+    console.log("USER_ID", user.id);
+    fetchOrders(user.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authLoading]);
 
-  // Recarrega quando o usuário volta para a aba/app (ex: retornando do WhatsApp).
-  // iOS Safari pode suspender a sessão ou o fetch em segundo plano,
-  // então precisamos re-checar ao ficar visível novamente.
+  // Recarrega quando usuário volta ao app (ex: retornando do WhatsApp)
   useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
+    function handleVisibility() {
+      if (document.visibilityState === "visible" && userIdRef.current) {
         console.log("[pedidos] Página visível novamente — recarregando pedidos");
-        loadOrders();
+        fetchOrders(userIdRef.current);
       }
-    };
+    }
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -171,13 +151,13 @@ function OrdersPage() {
               <p className="text-sm text-muted-foreground">
                 Verifique sua conexão e tente novamente.
               </p>
-              <Button onClick={() => loadOrders()} className="gap-2">
+              <Button onClick={() => user && fetchOrders(user.id)} className="gap-2">
                 <RefreshCcw className="h-4 w-4" />
                 Tentar novamente
               </Button>
             </CardContent>
           </Card>
-        ) : !userId ? (
+        ) : !user ? (
           <Card>
             <CardContent className="text-center py-10 space-y-4">
               <p className="text-muted-foreground">Entre para visualizar seus pedidos.</p>
