@@ -71,8 +71,10 @@ function createSupabaseClient() {
       // ─── Timeout para chamadas de autenticação (/auth/v1/) ────────────
       // Sem esse timeout, initializePromise pode travar para sempre no Safari/iOS
       // quando a rede está indisponível durante a renovação do token.
-      // Após 10s a requisição é abortada → initializePromise resolve com erro
+      // Após 30s a requisição é abortada → initializePromise resolve com erro
       // → session é removida → app inicia sem sessão (em vez de travar).
+      // 30s (em vez de 10s) evita falsos positivos em redes lentas — um refresh
+      // de token legítimo em 3G lento leva ~15s e não deve derrubar a sessão.
       fetch: (url, options = {}) => {
         const isAuthCall = typeof url === "string" && url.includes("/auth/v1/");
         if (!isAuthCall) return fetch(url, options);
@@ -80,8 +82,8 @@ function createSupabaseClient() {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
           controller.abort();
-          console.warn("[Supabase] Auth request abortado por timeout (10s):", url);
-        }, 10_000);
+          console.warn("[Supabase] Auth request abortado por timeout (30s):", url);
+        }, 30_000);
 
         return fetch(url, { ...options, signal: controller.signal }).finally(() =>
           clearTimeout(timeoutId),

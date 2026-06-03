@@ -388,11 +388,19 @@ function CheckoutPage() {
                 </Button>
               </a>
             )}
-            <Link to="/pedidos">
-              <Button variant="outline" className="w-full" size="lg">
-                Ver meus pedidos
-              </Button>
-            </Link>
+            {isLoggedIn ? (
+              <Link to="/pedidos">
+                <Button variant="outline" className="w-full" size="lg">
+                  Ver meus pedidos
+                </Button>
+              </Link>
+            ) : (
+              <Link to="/login">
+                <Button variant="outline" className="w-full" size="lg">
+                  Entrar para ver seus pedidos
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>
