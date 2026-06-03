@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,9 +52,8 @@ const EMPTY_ADDR = {
 function AccountPage() {
   const navigate = useNavigate();
   const { data: bairros = [] } = useBairros();
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState(false);
+  const { user, loading } = useAuth();
+  const authError = false; // useAuth() tem safety timer de 10s — sempre resolve
   const [activeSection, setActiveSection] = useState<null | "enderecos">(null);
 
   // Addresses state
@@ -62,49 +62,6 @@ function AccountPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [addrForm, setAddrForm] = useState({ ...EMPTY_ADDR });
   const [savingAddr, setSavingAddr] = useState(false);
-
-  useEffect(() => {
-    console.log("[minha-conta] LOADING START");
-
-    const safetyTimer = setTimeout(() => {
-      console.warn("[minha-conta] Timeout (10s) ao carregar usuário — forçando loading=false");
-      console.log("[minha-conta] LOADING END (timeout)");
-      setAuthError(true);
-      setLoading(false);
-    }, 10_000);
-
-    supabase.auth
-      .getUser()
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("[minha-conta] Erro ao carregar usuário:", error.message);
-        }
-        console.log(
-          "[minha-conta] SESSION",
-          data.user ? { id: data.user.id, email: data.user.email } : null,
-        );
-        console.log("[minha-conta] USER", data.user ?? null);
-        setUser(data.user);
-      })
-      .catch((err) => {
-        console.error("[minha-conta] Erro inesperado ao carregar usuário:", err);
-      })
-      .finally(() => {
-        clearTimeout(safetyTimer);
-        console.log("[minha-conta] LOADING END");
-        setLoading(false);
-      });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => {
-      clearTimeout(safetyTimer);
-      subscription.unsubscribe();
-    };
-  }, []);
 
   const loadEnderecos = async (uid: string) => {
     const { data } = await supabase

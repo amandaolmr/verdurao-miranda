@@ -161,23 +161,6 @@ function RootComponent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Limpeza apenas em erro explícito (ex: token completamente inválido).
-  // Sem timeout agressivo — uma sessão Google válida pode levar alguns segundos
-  // para ser restaurada via refresh token, e o timeout matava sessões legítimas.
-  useEffect(() => {
-    supabase.auth
-      .getSession()
-      .then(({ error }) => {
-        if (error) {
-          console.warn("[Auth] Sessão inválida no startup, limpando:", error.message);
-          supabase.auth.signOut({ scope: "local" }).catch(() => {});
-        }
-      })
-      .catch(() => {
-        supabase.auth.signOut({ scope: "local" }).catch(() => {});
-      });
-  }, []);
-
   // Favicon dinâmico — usa logo_url cadastrada nas configurações da loja
   useEffect(() => {
     supabase

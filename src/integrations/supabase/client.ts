@@ -38,22 +38,15 @@ function createSupabaseClient() {
         if (raw) {
           const parsed = JSON.parse(raw);
           const refreshToken: string | undefined = parsed?.refresh_token;
-          const expiresAt: number | undefined = parsed?.expires_at;
-          const now = Math.floor(Date.now() / 1000);
 
           if (!refreshToken) {
-            // Sem refresh_token: não pode renovar → remove
+            // Sem refresh_token: impossível renovar a sessão → remove.
+            // Não removemos com base em expires_at porque o refresh_token
+            // ainda pode ser válido por dias/semanas — o Supabase renova
+            // automaticamente via autoRefreshToken. Remover aqui forçaria
+            // re-login a cada hora (duração padrão do access_token).
             localStorage.removeItem(storageKey);
             console.warn("[Supabase] Sessão sem refresh_token removida (evita bloqueio).");
-          } else if (expiresAt !== undefined && expiresAt < now) {
-            // Access token expirado → Supabase tentaria refresh na inicialização.
-            // No Safari/iOS essa chamada pode travar indefinidamente.
-            // Removemos para evitar o bloqueio — usuário fará login novamente.
-            localStorage.removeItem(storageKey);
-            console.warn(
-              "[Supabase] Token expirado removido para evitar bloqueio de initializePromise.",
-              { expiresAt, now, diff: now - expiresAt },
-            );
           }
         }
       } catch {
