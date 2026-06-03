@@ -25,6 +25,7 @@ function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const { addToCart, clearCart } = useCart();
   const navigate = useNavigate();
@@ -38,6 +39,7 @@ function OrdersPage() {
 
     setLoading(true);
     setLoadError(false);
+    setErrorMessage(null);
     console.log("[pedidos] LOADING START");
 
     // Timeout de segurança de 10s: garante que a página nunca fica
@@ -80,16 +82,18 @@ function OrdersPage() {
         .eq("cliente_id", uid)
         .order("criado_em", { ascending: false });
       console.log("[pedidos] PEDIDOS QUERY END");
+      console.log("PEDIDOS_DATA", pedidos);
+      console.error("PEDIDOS_ERROR", error);
 
       if (error) {
-        console.error(error);
         throw error;
       }
 
       setOrders(pedidos || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error("[pedidos] Erro inesperado:", err);
       setLoadError(true);
+      setErrorMessage(err?.message ?? String(err) ?? "Erro desconhecido");
     } finally {
       clearTimeout(safetyTimer);
       console.log("[pedidos] LOADING END");
@@ -159,6 +163,11 @@ function OrdersPage() {
             <CardContent className="text-center py-10 space-y-4">
               <AlertCircle className="h-12 w-12 mx-auto text-destructive" />
               <p className="font-semibold">Não foi possível carregar seus pedidos.</p>
+              {errorMessage && (
+                <p className="text-xs font-mono bg-muted rounded px-3 py-2 text-left break-all">
+                  {errorMessage}
+                </p>
+              )}
               <p className="text-sm text-muted-foreground">
                 Verifique sua conexão e tente novamente.
               </p>
