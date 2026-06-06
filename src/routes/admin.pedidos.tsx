@@ -12,8 +12,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Printer, CheckCircle, X, FileDown } from "lucide-react";
+import { Printer, CheckCircle, X, FileDown, Wifi, WifiOff, TestTube2 } from "lucide-react";
 import { useConfig } from "@/hooks/useConfig";
+import { useQZTray } from "@/hooks/useQZTray";
+import { isQZConnected, printOrder as qzPrintOrder } from "@/lib/qzTray";
 import { buildReceiptHTML, printReceiptWindow } from "@/components/PrintReceipt";
 
 export const Route = createFileRoute("/admin/pedidos")({
@@ -93,6 +95,7 @@ function formatQtyItem(qty: number, unidade: string): string {
 
 function AdminOrders() {
   const config = useConfig();
+  const qz = useQZTray();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
@@ -132,6 +135,30 @@ function AdminOrders() {
             duration: 20000,
           });
           load();
+          // Auto-print via QZ Tray when connected (reads window.qz directly — avoids stale closure)
+          if (isQZConnected()) {
+            supabase
+              .from("pedidos")
+              .select(
+                "*, itens_pedido(*, produtos(nome, unidade_venda, permite_fracionamento)), bairros(nome)",
+              )
+              .eq("id", payload.new.id as string)
+              .single()
+              .then(({ data }) => {
+                if (data) {
+                  qzPrintOrder(
+                    data,
+                    configRef.current.nomeLoja,
+                    configRef.current.whatsapp || undefined,
+                  ).catch((err) => {
+                    toast.error(
+                      "Erro na impressão automática: " +
+                        (err instanceof Error ? err.message : String(err)),
+                    );
+                  });
+                }
+              });
+          }
         },
       )
       .subscribe((status) => {
@@ -160,13 +187,30 @@ function AdminOrders() {
   const nomeLoja = config?.nome_loja || "Verdurão Miranda";
   const whatsapp = config?.whatsapp || "";
 
+  // Keep latest config in a ref to prevent stale closures in Realtime callbacks.
+  const configRef = useRef({ nomeLoja: "Verdurão Miranda", whatsapp: "" });
+  useEffect(() => {
+    configRef.current = { nomeLoja, whatsapp };
+  }, [nomeLoja, whatsapp]);
+
   /**
-   * Impressão térmica 58mm — abre comprovante em nova aba.
-   * Desktop: diálogo de impressão do sistema.
-   * iOS: AirPrint + "Salvar como PDF" + apps de impressora.
-   * Android: diálogo do sistema (Bluetooth / Wi-Fi / PDF).
+   * Print via QZ Tray (silent ESC/POS — no browser dialog).
+   * Falls back to browser print dialog when QZ Tray is not connected.
    */
-  const handlePrint = (order: any) => {
+  const handlePrint = async (order: any) => {
+    if (isQZConnected()) {
+      try {
+        await qzPrintOrder(order, nomeLoja, whatsapp || undefined);
+        toast.success("Impresso via QZ Tray.");
+        return;
+      } catch (err) {
+        toast.error(
+          "Falha no QZ Tray — abrindo diálogo do navegador. " +
+            (err instanceof Error ? err.message : String(err)),
+        );
+      }
+    }
+    // Fallback: open receipt in a new browser tab/window
     const html = buildReceiptHTML(order, nomeLoja, whatsapp, "thermal");
     printReceiptWindow(html);
   };
@@ -193,21 +237,105 @@ function AdminOrders() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Page title + status bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-3xl font-bold">Pedidos</h1>
-        <span
-          className={`text-xs flex items-center gap-1.5 ${realtimeStatus === "ok" ? "text-green-600" : realtimeStatus === "error" ? "text-destructive" : "text-muted-foreground"}`}
-        >
+
+        {/* Status badges + QZ action buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Supabase Realtime */}
           <span
-            className={`inline-block h-2 w-2 rounded-full ${realtimeStatus === "ok" ? "bg-green-500 animate-pulse" : realtimeStatus === "error" ? "bg-destructive" : "bg-muted-foreground"}`}
-          />
-          {realtimeStatus === "ok"
-            ? "Tempo real ativo"
-            : realtimeStatus === "error"
-              ? "Tempo real com falha — execute a migration SQL"
-              : "Conectando..."}
-        </span>
+            className={`text-xs flex items-center gap-1.5 ${realtimeStatus === "ok" ? "text-green-600" : realtimeStatus === "error" ? "text-destructive" : "text-muted-foreground"}`}
+          >
+            <span
+              className={`inline-block h-2 w-2 rounded-full ${realtimeStatus === "ok" ? "bg-green-500 animate-pulse" : realtimeStatus === "error" ? "bg-destructive" : "bg-muted-foreground"}`}
+            />
+            {realtimeStatus === "ok"
+              ? "Tempo real ativo"
+              : realtimeStatus === "error"
+                ? "Tempo real com falha"
+                : "Conectando..."}
+          </span>
+
+          <span className="hidden text-muted-foreground/40 sm:inline">|</span>
+
+          {/* QZ Tray printer status */}
+          <span
+            className={`text-xs flex items-center gap-1.5 ${
+              qz.status === "connected"
+                ? "text-green-600"
+                : qz.status === "error"
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+            }`}
+          >
+            {qz.status === "connected" ? (
+              <Wifi className="h-3.5 w-3.5" />
+            ) : (
+              <WifiOff className="h-3.5 w-3.5" />
+            )}
+            {qz.status === "connected"
+              ? "Impressora conectada"
+              : qz.status === "connecting" || qz.status === "loading"
+                ? "Conectando impressora..."
+                : qz.status === "error"
+                  ? "Erro QZ Tray"
+                  : "Impressora desconectada"}
+          </span>
+
+          {/* QZ Tray action buttons */}
+          {qz.status === "connected" ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 text-xs"
+                onClick={() =>
+                  qz
+                    .testPrint(nomeLoja)
+                    .catch((err) =>
+                      toast.error(
+                        err instanceof Error ? err.message : String(err),
+                      ),
+                    )
+                }
+              >
+                <TestTube2 className="h-3.5 w-3.5" />
+                Teste de Impressão
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 gap-1 text-xs text-muted-foreground"
+                onClick={() => qz.disconnect()}
+              >
+                <WifiOff className="h-3.5 w-3.5" />
+                Desconectar
+              </Button>
+            </>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1 text-xs"
+              disabled={qz.status === "connecting" || qz.status === "loading"}
+              onClick={() => qz.connect()}
+            >
+              <Wifi className="h-3.5 w-3.5" />
+              {qz.status === "connecting" || qz.status === "loading"
+                ? "Conectando..."
+                : "Conectar Impressora"}
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* QZ Tray error detail */}
+      {qz.status === "error" && qz.error && (
+        <p className="rounded bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {qz.error}
+        </p>
+      )}
       {loading ? (
         <p>Carregando...</p>
       ) : orders.length === 0 ? (
