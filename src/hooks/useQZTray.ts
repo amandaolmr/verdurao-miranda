@@ -4,6 +4,7 @@ import {
   connectQZ,
   disconnectQZ,
   isQZConnected,
+  printDiagnostic,
   printOrder,
   printTestPage,
 } from "@/lib/qzTray";
@@ -37,6 +38,12 @@ export interface UseQZTrayReturn {
    * Throws if QZ Tray is not connected.
    */
   testPrint: (nomeLoja: string) => Promise<void>;
+  /**
+   * Send a minimal ESC/POS diagnostic sequence (init + text + cut).
+   * Use this to validate the raw-print path before sending full receipts.
+   * Throws if QZ Tray is not connected.
+   */
+  diagnostic: () => Promise<void>;
 }
 
 export function useQZTray(): UseQZTrayReturn {
@@ -98,6 +105,11 @@ export function useQZTray(): UseQZTrayReturn {
     [printerName],
   );
 
+  const diagnostic = useCallback(async () => {
+    if (!isQZConnected()) throw new Error("QZ Tray não está conectado.");
+    await printDiagnostic();
+  }, []);
+
   return {
     status,
     error,
@@ -107,5 +119,6 @@ export function useQZTray(): UseQZTrayReturn {
     disconnect,
     print,
     testPrint,
+    diagnostic,
   };
 }

@@ -290,14 +290,41 @@ function AdminOrders() {
                 size="sm"
                 variant="outline"
                 className="h-7 gap-1 text-xs"
+                title="Teste mínimo ESC/POS: valida o caminho raw-print"
                 onClick={() =>
                   qz
-                    .testPrint(nomeLoja)
-                    .catch((err) => toast.error(err instanceof Error ? err.message : String(err)))
+                    .diagnostic()
+                    .then(() => toast.success("Diagnóstico enviado — verifique a impressora."))
+                    .catch((err) =>
+                      toast.error(
+                        "Diagnóstico falhou: " +
+                          (err instanceof Error ? err.message : String(err)),
+                      )
+                    )
                 }
               >
                 <TestTube2 className="h-3.5 w-3.5" />
-                Teste de Impressão
+                Diagnóstico
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 text-xs"
+                title="Imprime cupom de teste completo"
+                onClick={() =>
+                  qz
+                    .testPrint(nomeLoja)
+                    .then(() => toast.success("Teste de impressão enviado."))
+                    .catch((err) =>
+                      toast.error(
+                        "Teste falhou: " +
+                          (err instanceof Error ? err.message : String(err)),
+                      )
+                    )
+                }
+              >
+                <TestTube2 className="h-3.5 w-3.5" />
+                Teste Completo
               </Button>
               <Button
                 size="sm"

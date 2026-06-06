@@ -53,8 +53,9 @@ function encode(text: string): number[] {
   return bytes;
 }
 
-function bytesToBase64(bytes: number[]): string {
-  return btoa(String.fromCharCode(...bytes));
+/** Convert a byte array to a lowercase hex string (e.g. [0x1b,0x40] → "1b40"). */
+function bytesToHex(bytes: number[]): string {
+  return bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 // ─── ESC/POS command builder ──────────────────────────────────────────────────
@@ -97,8 +98,8 @@ class EscPos {
     return this.line(l + right);
   }
 
-  toBase64(): string {
-    return bytesToBase64(this.b);
+  toHex(): string {
+    return bytesToHex(this.b);
   }
 }
 
@@ -238,7 +239,7 @@ export function buildEscPosReceipt(
   }
 
   esc.separator("=").feed(5).cut();
-  return esc.toBase64();
+  return esc.toHex();
 }
 
 // ─── Test receipt builder ─────────────────────────────────────────────────────
@@ -274,7 +275,7 @@ export function buildTestEscPos(nomeLoja: string, printerName?: string): string 
     .feed(5)
     .cut();
 
-  return esc.toBase64();
+  return esc.toHex();
 }
 
 // ─── Security — unsigned (QZ Tray prompts "Allow / Allow Always" on 1st use) ──
@@ -314,13 +315,43 @@ export function isQZConnected(): boolean {
 }
 
 // ─── Print functions ──────────────────────────────────────────────────────────
-export async function printRawBase64(base64: string): Promise<void> {
+
+/**
+ * Build the minimal diagnostic ESC/POS sequence requested for raw-print validation:
+ *   ESC @ (init) + "TESTE IMPRESSAO" + 4x LF + GS V 0 (full cut)
+ * Returns a hex string, the most reliable format for QZ Tray raw printing.
+ */
+export function buildDiagnosticHex(): string {
+  const bytes = [
+    0x1b, 0x40,                             // ESC @ — initialize printer
+    ...encode("TESTE IMPRESSAO ESC/POS\n"), // ASCII text
+    ...encode("Bematech MP-2500 TH\n"),
+    ...encode(new Date().toLocaleString("pt-BR") + "\n"),
+    0x0a, 0x0a, 0x0a, 0x0a,                 // 4x line feed
+    0x1d, 0x56, 0x00,                        // GS V 0 — full cut
+  ];
+  return bytesToHex(bytes);
+}
+
+/**
+ * Send raw hex bytes to the default printer via QZ Tray.
+ * Using format:"hex" is the most reliable option for ESC/POS on Windows.
+ */
+async function printRawHex(hex: string): Promise<void> {
   if (!qz.websocket.isActive()) {
     throw new Error("QZ Tray não está conectado.");
   }
   const printer = await qz.printers.getDefault();
   const config = qz.configs.create(printer);
-  await qz.print(config, [{ type: "raw", format: "base64", data: base64 }]);
+  console.log(
+    `[QZ Tray] Enviando ${hex.length / 2} bytes (hex) para "${printer}"`,
+  );
+  await qz.print(config, [{ type: "raw", format: "hex", data: hex }]);
+}
+
+/** Print a minimal diagnostic receipt (useful to validate raw-print path). */
+export async function printDiagnostic(): Promise<void> {
+  await printRawHex(buildDiagnosticHex());
 }
 
 export async function printOrder(
@@ -328,12 +359,12 @@ export async function printOrder(
   nomeLoja: string,
   whatsapp?: string | null,
 ): Promise<void> {
-  await printRawBase64(buildEscPosReceipt(order, nomeLoja, whatsapp));
+  await printRawHex(buildEscPosReceipt(order, nomeLoja, whatsapp));
 }
 
 export async function printTestPage(
   nomeLoja: string,
   printerName?: string,
 ): Promise<void> {
-  await printRawBase64(buildTestEscPos(nomeLoja, printerName));
+  await printRawHex(buildTestEscPos(nomeLoja, printerName));
 }
