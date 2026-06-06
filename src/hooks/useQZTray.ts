@@ -28,11 +28,7 @@ export interface UseQZTrayReturn {
    * Print a full ESC/POS receipt for the given order.
    * Throws if QZ Tray is not connected.
    */
-  print: (
-    order: any,
-    nomeLoja: string,
-    whatsapp?: string | null,
-  ) => Promise<void>;
+  print: (order: any, nomeLoja: string, whatsapp?: string | null) => Promise<void>;
   /**
    * Print a test page to verify that the printer is working.
    * Throws if QZ Tray is not connected.
@@ -89,13 +85,10 @@ export function useQZTray(): UseQZTrayReturn {
     }
   }, []);
 
-  const print = useCallback(
-    async (order: any, nomeLoja: string, whatsapp?: string | null) => {
-      if (!isQZConnected()) throw new Error("QZ Tray não está conectado.");
-      await printOrder(order, nomeLoja, whatsapp);
-    },
-    [],
-  );
+  const print = useCallback(async (order: any, nomeLoja: string, whatsapp?: string | null) => {
+    if (!isQZConnected()) throw new Error("QZ Tray não está conectado.");
+    await printOrder(order, nomeLoja, whatsapp);
+  }, []);
 
   const testPrint = useCallback(
     async (nomeLoja: string) => {

@@ -297,9 +297,8 @@ function AdminOrders() {
                     .then(() => toast.success("Diagnóstico enviado — verifique a impressora."))
                     .catch((err) =>
                       toast.error(
-                        "Diagnóstico falhou: " +
-                          (err instanceof Error ? err.message : String(err)),
-                      )
+                        "Diagnóstico falhou: " + (err instanceof Error ? err.message : String(err)),
+                      ),
                     )
                 }
               >
@@ -317,9 +316,8 @@ function AdminOrders() {
                     .then(() => toast.success("Teste de impressão enviado."))
                     .catch((err) =>
                       toast.error(
-                        "Teste falhou: " +
-                          (err instanceof Error ? err.message : String(err)),
-                      )
+                        "Teste falhou: " + (err instanceof Error ? err.message : String(err)),
+                      ),
                     )
                 }
               >
