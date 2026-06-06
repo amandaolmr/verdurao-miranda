@@ -293,11 +293,7 @@ function AdminOrders() {
                 onClick={() =>
                   qz
                     .testPrint(nomeLoja)
-                    .catch((err) =>
-                      toast.error(
-                        err instanceof Error ? err.message : String(err),
-                      ),
-                    )
+                    .catch((err) => toast.error(err instanceof Error ? err.message : String(err)))
                 }
               >
                 <TestTube2 className="h-3.5 w-3.5" />
@@ -330,9 +326,7 @@ function AdminOrders() {
 
       {/* QZ Tray error detail */}
       {qz.status === "error" && qz.error && (
-        <p className="rounded bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          {qz.error}
-        </p>
+        <p className="rounded bg-destructive/10 px-3 py-2 text-xs text-destructive">{qz.error}</p>
       )}
       {loading ? (
         <p>Carregando...</p>

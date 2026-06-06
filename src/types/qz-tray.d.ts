@@ -36,19 +36,13 @@ declare module "qz-tray" {
 
   interface QZSecurity {
     setCertificatePromise(
-      fn: (
-        resolve: (cert: string) => void,
-        reject: (err: unknown) => void,
-      ) => void,
+      fn: (resolve: (cert: string) => void, reject: (err: unknown) => void) => void,
     ): void;
     setSignatureAlgorithm(alg: string): void;
     setSignaturePromise(
       fn: (
         toSign: string,
-      ) => (
-        resolve: (sig: string) => void,
-        reject: (err: unknown) => void,
-      ) => void,
+      ) => (resolve: (sig: string) => void, reject: (err: unknown) => void) => void,
     ): void;
   }
 
