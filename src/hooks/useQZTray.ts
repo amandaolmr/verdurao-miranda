@@ -4,7 +4,6 @@ import {
   connectQZ,
   disconnectQZ,
   isQZConnected,
-  loadQZScript,
   printOrder,
   printTestPage,
 } from "@/lib/qzTray";
@@ -18,7 +17,9 @@ export interface UseQZTrayReturn {
   error: string | null;
   /** True when status === "connected". */
   isConnected: boolean;
-  /** Load the QZ Tray script and open the WebSocket connection. */
+  /** Name of the default printer found after connecting (null if not yet connected). */
+  printerName: string | null;
+  /** Open the WebSocket connection to QZ Tray and discover the default printer. */
   connect: () => Promise<void>;
   /** Close the WebSocket connection. */
   disconnect: () => Promise<void>;
@@ -26,7 +27,11 @@ export interface UseQZTrayReturn {
    * Print a full ESC/POS receipt for the given order.
    * Throws if QZ Tray is not connected.
    */
-  print: (order: any, nomeLoja: string, whatsapp?: string | null) => Promise<void>;
+  print: (
+    order: any,
+    nomeLoja: string,
+    whatsapp?: string | null,
+  ) => Promise<void>;
   /**
    * Print a test page to verify that the printer is working.
    * Throws if QZ Tray is not connected.
@@ -37,23 +42,13 @@ export interface UseQZTrayReturn {
 export function useQZTray(): UseQZTrayReturn {
   const [status, setStatus] = useState<QZStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [printerName, setPrinterName] = useState<string | null>(null);
   const mounted = useRef(true);
 
   useEffect(() => {
     mounted.current = true;
-
-    // Pre-load the QZ Tray script on mount so the first "connect" call is fast.
-    // If the script is already loaded (page reload), also update status.
-    loadQZScript()
-      .then(() => {
-        if (!mounted.current) return;
-        setStatus(isQZConnected() ? "connected" : "disconnected");
-      })
-      .catch(() => {
-        // CDN may not be reachable — remain "idle" so the user can retry.
-        if (mounted.current) setStatus("idle");
-      });
-
+    // Check if QZ Tray is already active (e.g. after a hot-reload).
+    if (isQZConnected()) setStatus("connected");
     return () => {
       mounted.current = false;
     };
@@ -63,8 +58,11 @@ export function useQZTray(): UseQZTrayReturn {
     setStatus("connecting");
     setError(null);
     try {
-      await connectQZ();
-      if (mounted.current) setStatus("connected");
+      const printer = await connectQZ();
+      if (mounted.current) {
+        setStatus("connected");
+        setPrinterName(printer);
+      }
     } catch (err) {
       if (mounted.current) {
         setStatus("error");
@@ -77,24 +75,34 @@ export function useQZTray(): UseQZTrayReturn {
     try {
       await disconnectQZ();
     } finally {
-      if (mounted.current) setStatus("disconnected");
+      if (mounted.current) {
+        setStatus("disconnected");
+        setPrinterName(null);
+      }
     }
   }, []);
 
-  const print = useCallback(async (order: any, nomeLoja: string, whatsapp?: string | null) => {
-    if (!isQZConnected()) throw new Error("QZ Tray não está conectado.");
-    await printOrder(order, nomeLoja, whatsapp);
-  }, []);
+  const print = useCallback(
+    async (order: any, nomeLoja: string, whatsapp?: string | null) => {
+      if (!isQZConnected()) throw new Error("QZ Tray não está conectado.");
+      await printOrder(order, nomeLoja, whatsapp);
+    },
+    [],
+  );
 
-  const testPrint = useCallback(async (nomeLoja: string) => {
-    if (!isQZConnected()) throw new Error("QZ Tray não está conectado.");
-    await printTestPage(nomeLoja);
-  }, []);
+  const testPrint = useCallback(
+    async (nomeLoja: string) => {
+      if (!isQZConnected()) throw new Error("QZ Tray não está conectado.");
+      await printTestPage(nomeLoja, printerName ?? undefined);
+    },
+    [printerName],
+  );
 
   return {
     status,
     error,
     isConnected: status === "connected",
+    printerName,
     connect,
     disconnect,
     print,

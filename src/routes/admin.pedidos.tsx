@@ -275,8 +275,8 @@ function AdminOrders() {
               <WifiOff className="h-3.5 w-3.5" />
             )}
             {qz.status === "connected"
-              ? "Impressora conectada"
-              : qz.status === "connecting" || qz.status === "loading"
+              ? (qz.printerName ?? "Impressora conectada")
+              : qz.status === "connecting"
                 ? "Conectando impressora..."
                 : qz.status === "error"
                   ? "Erro QZ Tray"
@@ -318,13 +318,11 @@ function AdminOrders() {
               size="sm"
               variant="outline"
               className="h-7 gap-1 text-xs"
-              disabled={qz.status === "connecting" || qz.status === "loading"}
+              disabled={qz.status === "connecting"}
               onClick={() => qz.connect()}
             >
               <Wifi className="h-3.5 w-3.5" />
-              {qz.status === "connecting" || qz.status === "loading"
-                ? "Conectando..."
-                : "Conectar Impressora"}
+              {qz.status === "connecting" ? "Conectando..." : "Conectar Impressora"}
             </Button>
           )}
         </div>
