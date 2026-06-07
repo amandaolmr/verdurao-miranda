@@ -8,7 +8,7 @@
  *   VITE_MP_PUBLIC_KEY=APP_USR-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
  */
 import { useEffect, useState } from "react";
-import { initMercadoPago, Payment } from "@mercadopago/sdk-react";
+import { initMercadoPago, CardPayment } from "@mercadopago/sdk-react";
 import { Loader2, AlertCircle } from "lucide-react";
 import { type PaymentResult, processarPagamento } from "@/lib/api/payments";
 
@@ -52,24 +52,9 @@ interface Props {
 let mpInitialized = false;
 
 // Map our payment method to the Payment Brick customisation
-function buildCustomization(method: OnlinePaymentMethod) {
-  switch (method) {
-    case "pix":
-      return { paymentMethods: { bankTransfer: ["pix"] as ["pix"] } };
-    case "cartao_credito":
-      return {
-        paymentMethods: {
-          creditCard: "all" as const,
-          maxInstallments: 12,
-        },
-      };
-    case "cartao_debito":
-      return {
-        paymentMethods: {
-          debitCard: "all" as const,
-        },
-      };
-  }
+function buildCustomization(_method: OnlinePaymentMethod) {
+  // CardPayment only handles credit card — no customization needed
+  return {};
 }
 
 export function MercadoPagoCheckout({
@@ -134,7 +119,6 @@ export function MercadoPagoCheckout({
 
   return (
     <div className="space-y-4">
-
       {!brickReady && (
         <div className="flex items-center justify-center py-12 gap-3">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -144,18 +128,17 @@ export function MercadoPagoCheckout({
         </div>
       )}
 
-      {/* The Payment Brick renders itself into this container */}
+      {/* The CardPayment Brick renders itself into this container */}
       <div className={brickReady ? "" : "invisible h-0 overflow-hidden"}>
-        <Payment
+        <CardPayment
           initialization={{
             amount,
             payer: { email: payerEmail },
           }}
-          customization={buildCustomization(paymentMethod) as any}
           onReady={() => setBrickReady(true)}
           onSubmit={handleSubmit}
           onError={(error) => {
-            console.error("[MP Payment Brick]", error);
+            console.error("[MP CardPayment Brick]", error);
           }}
         />
       </div>
