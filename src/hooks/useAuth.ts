@@ -39,6 +39,23 @@ export function useAuth(): AuthState {
       }
     }, 10_000);
 
+    // Ao retornar de um app externo (ex: WhatsApp) no mobile, o iOS Safari
+    // pode restaurar a página via bfcache sem re-executar o JS. Quando isso
+    // acontece, a sessão ainda está no localStorage mas o INITIAL_SESSION não
+    // dispara novamente. Forçamos uma re-verificação com getSession().
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        supabase.auth
+          .getSession()
+          .then(({ data }) => {
+            setSession(data.session);
+            setLoading(false);
+          })
+          .catch(() => {/* noop */});
+      }
+    };
+    window.addEventListener("pageshow", handlePageShow);
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, newSession) => {
@@ -75,6 +92,7 @@ export function useAuth(): AuthState {
     return () => {
       clearTimeout(safetyTimer);
       subscription.unsubscribe();
+      window.removeEventListener("pageshow", handlePageShow);
     };
   }, []);
 
