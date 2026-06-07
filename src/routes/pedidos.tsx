@@ -23,8 +23,6 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function OrdersPage() {
-  // useAuth já resolveu a sessão (com safety timer de 10s).
-  // Não chamamos getSession() aqui para evitar bloquear em initializePromise.
   const { user, loading: authLoading } = useAuth();
   const [orders, setOrders] = useState<any[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
@@ -33,26 +31,8 @@ function OrdersPage() {
   const { addToCart, clearCart } = useCart();
   const navigate = useNavigate();
 
-  // Período de carência: quando o safety timer do useAuth dispara antes do
-  // INITIAL_SESSION (ex: reload após WhatsApp no mobile), aguardamos mais 4s
-  // antes de exibir o prompt de login, dando tempo para a sessão ser restaurada.
-  const [sessionGrace, setSessionGrace] = useState(true);
-  useEffect(() => {
-    if (authLoading) {
-      setSessionGrace(true);
-      return;
-    }
-    if (user) {
-      setSessionGrace(false);
-      return;
-    }
-    // authLoading=false e user=null: safety timer disparou — aguarda mais 4s
-    const t = setTimeout(() => setSessionGrace(false), 4_000);
-    return () => clearTimeout(t);
-  }, [authLoading, user]);
-
-  // loading combinado: espera auth resolver + período de carência + query
-  const loading = authLoading || sessionGrace || ordersLoading;
+  // loading combinado: espera auth resolver, depois espera query
+  const loading = authLoading || ordersLoading;
 
   // Ref para o user.id atual — usado no visibilitychange sem precisar
   // re-registrar o listener quando o user muda.
