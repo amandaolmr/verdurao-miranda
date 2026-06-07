@@ -976,8 +976,7 @@ function CheckoutPage() {
                         numero: tipoRecebimento === "entrega" ? form.numero : "",
                         complemento:
                           tipoRecebimento === "entrega" ? form.complemento || null : null,
-                        referencia:
-                          tipoRecebimento === "entrega" ? form.referencia || null : null,
+                        referencia: tipoRecebimento === "entrega" ? form.referencia || null : null,
                         bairroId: tipoRecebimento === "entrega" ? form.bairroId : null,
                         precisaTroco: null,
                         valorTroco: null,
@@ -999,10 +998,7 @@ function CheckoutPage() {
 
               {/* Dinheiro + inline troco */}
               <div
-                className={cn(
-                  "transition-colors",
-                  form.pagamento === "dinheiro" && "bg-primary/5",
-                )}
+                className={cn("transition-colors", form.pagamento === "dinheiro" && "bg-primary/5")}
               >
                 <label
                   className={cn(
