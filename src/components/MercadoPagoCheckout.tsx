@@ -111,12 +111,12 @@ export const MercadoPagoCheckout = memo(function MercadoPagoCheckout({
         throw new Error(result.message);
       }
 
-      // Defer the parent state update by one macro-task.
-      // This allows the Brick’s internal cleanup micro-tasks to complete
-      // before React unmounts this component, preventing the
-      // “removeChild” crash.
-      setTimeout(() => onSuccess(result), 0);
-      // Do NOT reset processing here — the component is about to unmount.
+      // Notify the parent immediately. The parent (checkout.tsx) hides this
+      // component via CSS (keeping it in the DOM) and only unmounts it after
+      // 500 ms — enough time for the Brick's async DOM cleanup to complete,
+      // preventing the "removeChild" crash.
+      onSuccess(result);
+      // Do NOT reset processing here — the component is about to be hidden.
     } catch (err) {
       // Only reset processing on error (success path is handled above)
       setProcessing(false);

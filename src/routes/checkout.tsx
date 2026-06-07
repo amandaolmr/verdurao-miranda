@@ -94,6 +94,9 @@ function CheckoutPage() {
     isPending?: boolean;
   } | null>(null);
   const [copied, setCopied] = useState(false);
+  // Tracks when CC payment is done — hides Brick visually before unmounting
+  // to give the Brick time to finish its async DOM cleanup (avoids removeChild crash)
+  const [ccDone, setCCDone] = useState(false);
 
   // Auto-fill form from saved profile + addresses
   useEffect(() => {
@@ -962,7 +965,12 @@ function CheckoutPage() {
                   )}
                 </label>
                 {form.pagamento === "cartao_credito" && (
-                  <div className="px-5 pb-5 animate-in slide-in-from-top-2 duration-200">
+                  <div
+                    className={cn(
+                      "px-5 pb-5 animate-in slide-in-from-top-2 duration-200",
+                      ccDone && "invisible h-0 overflow-hidden",
+                    )}
+                  >
                     <MercadoPagoCheckout
                       amount={total}
                       paymentMethod="cartao_credito"
@@ -990,7 +998,13 @@ function CheckoutPage() {
                           valorTotal: it.preco * it.quantidade,
                         })),
                       }}
-                      onSuccess={handlePaymentSuccess}
+                      onSuccess={(result) => {
+                        // Visually hide the Brick immediately (keeps it in the DOM)
+                        // so the Brick can finish its async removeChild cleanup.
+                        // Only after 500 ms do we unmount it via handlePaymentSuccess.
+                        setCCDone(true);
+                        setTimeout(() => handlePaymentSuccess(result), 500);
+                      }}
                     />
                   </div>
                 )}
