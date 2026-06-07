@@ -37,7 +37,13 @@ export function getMercadoPagoConfig() {
 
 export function getSupabaseAdminConfig() {
   return {
-    url: process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "",
+    // VITE_SUPABASE_URL is a public var — Vite embeds it as a static string
+    // at build time (import.meta.env), so it's available in the server bundle
+    // without needing to be set as a Cloudflare secret.
+    url:
+      (import.meta.env.VITE_SUPABASE_URL as string | undefined) ||
+      process.env.SUPABASE_URL ||
+      "",
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
   };
 }
