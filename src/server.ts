@@ -55,11 +55,15 @@ async function handleMpWebhook(request: Request): Promise<Response> {
     const mpStatus = payment.status as string;
 
     const statusPagamento =
-      mpStatus === "approved" ? "aprovado"
-      : mpStatus === "pending" || mpStatus === "in_process" ? "pendente"
-      : mpStatus === "rejected" ? "recusado"
-      : mpStatus === "cancelled" ? "cancelado"
-      : null;
+      mpStatus === "approved"
+        ? "aprovado"
+        : mpStatus === "pending" || mpStatus === "in_process"
+          ? "pendente"
+          : mpStatus === "rejected"
+            ? "recusado"
+            : mpStatus === "cancelled"
+              ? "cancelado"
+              : null;
 
     if (!statusPagamento) return new Response("OK", { status: 200 });
 
