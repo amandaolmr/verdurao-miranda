@@ -86,8 +86,12 @@ export const processarPagamento = createServerFn({ method: "POST" })
 
     // ── Build Mercado Pago payment request ───────────────────────────────────
     const fd = data.formData;
+    // Round to 2 decimal places — floating point arithmetic (e.g. 11.48 + 2)
+    // can produce values like 13.479999999... which MP rejects as invalid.
+    const transactionAmount =
+      Math.round(Number(data.orderData.valorTotal) * 100) / 100;
     const mpBody: Record<string, unknown> = {
-      transaction_amount: data.orderData.valorTotal,
+      transaction_amount: transactionAmount,
       description: `Pedido Verdurão Miranda — ${data.orderData.nomeCliente}`,
       payment_method_id: fd.payment_method_id,
       payer: fd.payer,
