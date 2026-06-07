@@ -7,7 +7,7 @@
  * Required env var (exposed to the browser via Vite):
  *   VITE_MP_PUBLIC_KEY=APP_USR-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 import { initMercadoPago, CardPayment } from "@mercadopago/sdk-react";
 import { Loader2, AlertCircle } from "lucide-react";
 import { type PaymentResult, processarPagamento } from "@/lib/api/payments";
@@ -57,7 +57,7 @@ function buildCustomization(_method: OnlinePaymentMethod) {
   return {};
 }
 
-export function MercadoPagoCheckout({
+export const MercadoPagoCheckout = memo(function MercadoPagoCheckout({
   amount,
   paymentMethod,
   payerEmail = "",
@@ -106,14 +106,21 @@ export function MercadoPagoCheckout({
       });
 
       if (result.status === "rejected") {
-        // Let the Brick display the error
+        // Reset processing so the Brick shows the error and lets the user retry
+        setProcessing(false);
         throw new Error(result.message);
       }
 
-      // Success or pending PIX — let parent handle the UI
-      onSuccess(result);
-    } finally {
+      // Defer the parent state update by one macro-task.
+      // This allows the Brick’s internal cleanup micro-tasks to complete
+      // before React unmounts this component, preventing the
+      // “removeChild” crash.
+      setTimeout(() => onSuccess(result), 0);
+      // Do NOT reset processing here — the component is about to unmount.
+    } catch (err) {
+      // Only reset processing on error (success path is handled above)
       setProcessing(false);
+      throw err;
     }
   };
 
@@ -144,4 +151,4 @@ export function MercadoPagoCheckout({
       </div>
     </div>
   );
-}
+});
