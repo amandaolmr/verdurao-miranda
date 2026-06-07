@@ -51,7 +51,9 @@ export function useAuth(): AuthState {
             setSession(data.session);
             setLoading(false);
           })
-          .catch(() => {/* noop */});
+          .catch(() => {
+            /* noop */
+          });
       }
     };
     window.addEventListener("pageshow", handlePageShow);
