@@ -41,11 +41,14 @@ const PAGAMENTO_LABEL: Record<string, string> = {
   cartao: "Cartão (entrega)",
 };
 
-const STATUS_PAGAMENTO_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  aprovado:  { label: "Pago",     variant: "default" },
-  pendente:  { label: "Aguardando Pagamento", variant: "secondary" },
-  recusado:  { label: "Pagamento Recusado",   variant: "destructive" },
-  cancelado: { label: "Pagamento Cancelado",  variant: "outline" },
+const STATUS_PAGAMENTO_LABEL: Record<
+  string,
+  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
+> = {
+  aprovado: { label: "Pago", variant: "default" },
+  pendente: { label: "Aguardando Pagamento", variant: "secondary" },
+  recusado: { label: "Pagamento Recusado", variant: "destructive" },
+  cancelado: { label: "Pagamento Cancelado", variant: "outline" },
 };
 
 let _audioCtx: AudioContext | null = null;
@@ -437,8 +440,16 @@ function AdminOrders() {
                           <Button
                             size="sm"
                             className="bg-green-600 hover:bg-green-700 text-white"
-                            disabled={o.status_pagamento === "pendente" || o.status_pagamento === "recusado"}
-                            title={o.status_pagamento === "pendente" ? "Aguardando confirmação do pagamento" : o.status_pagamento === "recusado" ? "Pagamento recusado" : undefined}
+                            disabled={
+                              o.status_pagamento === "pendente" || o.status_pagamento === "recusado"
+                            }
+                            title={
+                              o.status_pagamento === "pendente"
+                                ? "Aguardando confirmação do pagamento"
+                                : o.status_pagamento === "recusado"
+                                  ? "Pagamento recusado"
+                                  : undefined
+                            }
                             onClick={async () => {
                               await updateStatus(o.id, "em_separacao");
                               handlePrint(o);

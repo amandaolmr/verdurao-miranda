@@ -9,8 +9,7 @@
  */
 import { useEffect, useState } from "react";
 import { initMercadoPago, Payment } from "@mercadopago/sdk-react";
-import { Loader2, ArrowLeft, AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Loader2, AlertCircle } from "lucide-react";
 import { type PaymentResult, processarPagamento } from "@/lib/api/payments";
 
 export type { PaymentResult };
@@ -46,7 +45,7 @@ interface Props {
   payerEmail?: string;
   orderData: OrderData;
   onSuccess: (result: PaymentResult) => void;
-  onBack: () => void;
+  onBack?: () => void;
 }
 
 // Track MP initialisation across re-renders
@@ -61,7 +60,6 @@ function buildCustomization(method: OnlinePaymentMethod) {
       return {
         paymentMethods: {
           creditCard: "all" as const,
-          debitCard: "none" as const,
           maxInstallments: 12,
         },
       };
@@ -69,7 +67,6 @@ function buildCustomization(method: OnlinePaymentMethod) {
       return {
         paymentMethods: {
           debitCard: "all" as const,
-          creditCard: "none" as const,
         },
       };
   }
@@ -100,9 +97,8 @@ export function MercadoPagoCheckout({
       <div className="rounded-lg border border-destructive bg-destructive/10 p-4 text-sm flex items-start gap-2">
         <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-destructive" />
         <span>
-          <strong>VITE_MP_PUBLIC_KEY</strong> não configurada.
-          Defina a chave pública do Mercado Pago no arquivo{" "}
-          <code>.env</code>.
+          <strong>VITE_MP_PUBLIC_KEY</strong> não configurada. Defina a chave pública do Mercado
+          Pago no arquivo <code>.env</code>.
         </span>
       </div>
     );
@@ -138,25 +134,6 @@ export function MercadoPagoCheckout({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onBack}
-          disabled={processing}
-          className="gap-1.5"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
-        </Button>
-        {processing && (
-          <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Processando pagamento...
-          </span>
-        )}
-      </div>
 
       {!brickReady && (
         <div className="flex items-center justify-center py-12 gap-3">

@@ -34,10 +34,9 @@ export const APIRoute = createAPIFileRoute("/api/pagamentos/webhook")({
       }
 
       // ── Fetch payment from MP to get authoritative status ─────────────────
-      const mpRes = await fetch(
-        `https://api.mercadopago.com/v1/payments/${paymentId}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
+      const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       if (!mpRes.ok) {
         console.error("[Webhook MP] Falha ao buscar pagamento:", mpRes.status);
         return new Response("OK", { status: 200 });

@@ -14,10 +14,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
-import {
-  getMercadoPagoConfig,
-  getSupabaseAdminConfig,
-} from "../config.server";
+import { getMercadoPagoConfig, getSupabaseAdminConfig } from "../config.server";
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -80,9 +77,7 @@ export const processarPagamento = createServerFn({ method: "POST" })
 
     const { url: supabaseUrl, serviceRoleKey } = getSupabaseAdminConfig();
     if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error(
-        "SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_URL não configurados.",
-      );
+      throw new Error("SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_URL não configurados.");
     }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
@@ -116,9 +111,7 @@ export const processarPagamento = createServerFn({ method: "POST" })
 
     if (!mpRes.ok) {
       const cause =
-        (mpPayment.message as string) ??
-        (mpPayment.error as string) ??
-        `HTTP ${mpRes.status}`;
+        (mpPayment.message as string) ?? (mpPayment.error as string) ?? `HTTP ${mpRes.status}`;
       throw new Error(`Mercado Pago: ${cause}`);
     }
 
@@ -171,8 +164,7 @@ export const processarPagamento = createServerFn({ method: "POST" })
         status_pagamento: mpStatus === "approved" ? "aprovado" : "pendente",
         metodo_pagamento: fd.payment_method_id as string,
         id_transacao_mercadopago: String(mpPayment.id),
-        data_pagamento:
-          mpStatus === "approved" ? new Date().toISOString() : null,
+        data_pagamento: mpStatus === "approved" ? new Date().toISOString() : null,
         valor_pago: mpStatus === "approved" ? data.orderData.valorTotal : null,
       })
       .select("id")
@@ -193,9 +185,8 @@ export const processarPagamento = createServerFn({ method: "POST" })
     if (itensErr) throw new Error(itensErr.message);
 
     // ── Extract PIX data (pending bank_transfer) ─────────────────────────────
-    const txData = (
-      mpPayment.point_of_interaction as Record<string, unknown> | undefined
-    )?.transaction_data as Record<string, unknown> | undefined;
+    const txData = (mpPayment.point_of_interaction as Record<string, unknown> | undefined)
+      ?.transaction_data as Record<string, unknown> | undefined;
 
     return {
       status: mpStatus === "approved" ? "approved" : "pending",
@@ -218,20 +209,15 @@ function traduzStatusDetail(statusDetail: string): string {
     cc_rejected_bad_filled_other: "Dados do cartão incorretos.",
     cc_rejected_bad_filled_security_code: "Código de segurança (CVV) inválido.",
     cc_rejected_blacklist: "Cartão bloqueado para este tipo de operação.",
-    cc_rejected_call_for_authorize:
-      "Pagamento requer autorização. Contate a operadora.",
+    cc_rejected_call_for_authorize: "Pagamento requer autorização. Contate a operadora.",
     cc_rejected_card_disabled: "Cartão desabilitado.",
     cc_rejected_card_error: "Erro no processamento. Tente novamente.",
     cc_rejected_duplicated_payment: "Pagamento duplicado detectado.",
     cc_rejected_high_risk: "Recusado por suspeita de fraude.",
     cc_rejected_insufficient_amount: "Saldo insuficiente.",
     cc_rejected_invalid_installments: "Número de parcelas inválido.",
-    cc_rejected_max_attempts:
-      "Limite de tentativas atingido. Tente outro cartão.",
+    cc_rejected_max_attempts: "Limite de tentativas atingido. Tente outro cartão.",
     pending_waiting_transfer: "Aguardando confirmação do PIX.",
   };
-  return (
-    map[statusDetail] ??
-    `Pagamento recusado. Tente outro cartão ou forma de pagamento.`
-  );
+  return map[statusDetail] ?? `Pagamento recusado. Tente outro cartão ou forma de pagamento.`;
 }

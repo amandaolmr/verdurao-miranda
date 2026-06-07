@@ -37,10 +37,7 @@ export function getMercadoPagoConfig() {
 
 export function getSupabaseAdminConfig() {
   return {
-    url:
-      process.env.VITE_SUPABASE_URL ??
-      process.env.SUPABASE_URL ??
-      "",
+    url: process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "",
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
   };
 }
