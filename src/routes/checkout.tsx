@@ -33,8 +33,15 @@ import {
   Store,
   CheckCircle2,
   MessageCircle,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useConfig } from "@/hooks/useConfig";
+import {
+  MercadoPagoCheckout,
+  type OnlinePaymentMethod,
+  type PaymentResult,
+} from "@/components/MercadoPagoCheckout";
 
 function maskMoeda(value: string): string {
   const nums = value.replace(/\D/g, "");
@@ -75,7 +82,15 @@ function CheckoutPage() {
   const [tipoRecebimento, setTipoRecebimento] = useState<"entrega" | "retirada">("entrega");
   const [precisaTroco, setPrecisaTroco] = useState<"sim" | "nao" | "">("");
   const [valorTroco, setValorTroco] = useState("");
-  const [pedidoSucesso, setPedidoSucesso] = useState<{ waUrl?: string } | null>(null);
+  const [pedidoSucesso, setPedidoSucesso] = useState<{
+    waUrl?: string;
+    pixQrCode?: string;
+    pixQrCodeBase64?: string;
+    orderId?: string;
+    isPending?: boolean;
+  } | null>(null);
+  const [step, setStep] = useState<"form" | "payment_brick">("form");
+  const [copied, setCopied] = useState(false);
 
   // Auto-fill form from saved profile + addresses
   useEffect(() => {
@@ -177,6 +192,11 @@ function CheckoutPage() {
         return;
       }
     }
+    // Online payment → switch to Payment Brick (order is created server-side after payment)
+    if (form.pagamento !== "dinheiro") {
+      setStep("payment_brick");
+      return;
+    }
     setSubmitting(true);
     try {
       // Garantir que o cliente existe na tabela antes de inserir o pedido (FK)
@@ -263,10 +283,11 @@ function CheckoutPage() {
         const numero = config.whatsapp.replace(/\D/g, "");
         const fone = numero.startsWith("55") ? numero : `55${numero}`;
         const pagamentoLabel: Record<string, string> = {
-          pix: "PIX",
-          cartao_credito: "Cartão de Crédito",
-          cartao_debito: "Cartão de Débito",
+          pix: "PIX (online)",
+          cartao_credito: "Cartão de Crédito (online)",
+          cartao_debito: "Cartão de Débito (online)",
           dinheiro: "Dinheiro",
+          cartao: "Cartão (na entrega)",
         };
         const bairroNome = bairros.find((b: any) => b.id === form.bairroId)?.nome ?? "";
         const linhasItens = items
@@ -322,6 +343,67 @@ function CheckoutPage() {
     }
   };
 
+  // Called by MercadoPagoCheckout after a successful server-side payment + order creation
+  const handlePaymentSuccess = (result: PaymentResult) => {
+    let waUrl: string | undefined;
+    if (config?.whatsapp) {
+      const numero = config.whatsapp.replace(/\D/g, "");
+      const fone = numero.startsWith("55") ? numero : `55${numero}`;
+      const bairroNome = bairros.find((b: any) => b.id === form.bairroId)?.nome ?? "";
+      const linhasItens = items
+        .map((it) => {
+          const qty = it.permite_fracionamento
+            ? `${it.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} ${formatUnidade(it.unidade_venda)}`
+            : `${it.quantidade}x`;
+          const subtotalItem = (it.preco * it.quantidade).toFixed(2).replace(".", ",");
+          return `• ${qty} ${it.nome} — R$ ${subtotalItem}`;
+        })
+        .join("\n");
+      const enderecoBloco =
+        tipoRecebimento === "entrega"
+          ? `*Entrega em:*\n${form.rua}, ${form.numero}${form.complemento ? ` — ${form.complemento}` : ""}${form.referencia ? `\nRef: ${form.referencia}` : ""}\nBairro ${bairroNome}`
+          : `*Retirada na loja*`;
+      const pagamentoOpts: Record<string, string> = {
+        pix: "PIX (online)",
+        cartao_credito: "Cartão de Crédito (online)",
+        cartao_debito: "Cartão de Débito (online)",
+        dinheiro: "Dinheiro",
+      };
+      const statusBloco =
+        result.status === "approved" ? "✅ Pagamento aprovado" : "⏳ PIX gerado — aguardando pagamento";
+      const msg = [
+        `*${config.nome_loja || "Verdurão Miranda"}*`,
+        `*Pedido #${(result.orderId ?? "").slice(0, 8).toUpperCase()}*`,
+        ``,
+        `*Cliente:* ${form.nome}`,
+        `*Telefone:* ${form.telefone}`,
+        ``,
+        `*Itens:*`,
+        linhasItens,
+        ``,
+        `*Subtotal:* R$ ${subtotal.toFixed(2).replace(".", ",")}`,
+        taxaEntrega > 0 ? `*Taxa de entrega:* R$ ${taxaEntrega.toFixed(2).replace(".", ",")}` : null,
+        `*Total:* R$ ${total.toFixed(2).replace(".", ",")}`,
+        ``,
+        enderecoBloco,
+        ``,
+        `*Pagamento:* ${pagamentoOpts[form.pagamento] ?? form.pagamento}`,
+        `*Status:* ${statusBloco}`,
+      ]
+        .filter((l) => l !== null)
+        .join("\n");
+      waUrl = `https://wa.me/${fone}?text=${encodeURIComponent(msg)}`;
+    }
+    clearCart();
+    setPedidoSucesso({
+      waUrl,
+      pixQrCode: result.pixQrCode ?? undefined,
+      pixQrCodeBase64: result.pixQrCodeBase64 ?? undefined,
+      orderId: result.orderId ?? undefined,
+      isPending: result.status === "pending",
+    });
+  };
+
   if (authChecking) {
     return (
       <div className="min-h-screen bg-background">
@@ -365,6 +447,89 @@ function CheckoutPage() {
   }
 
   if (pedidoSucesso) {
+    // ── PIX pending: show QR code ──────────────────────────────────────────
+    if (pedidoSucesso.isPending && pedidoSucesso.pixQrCode) {
+      return (
+        <div className="min-h-screen bg-background">
+          <Navbar />
+          <div className="container mx-auto px-4 py-16 max-w-md space-y-6">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="rounded-full bg-yellow-100 dark:bg-yellow-900/30 p-5">
+                <QrCode className="h-12 w-12 text-yellow-600" />
+              </div>
+              <h1 className="text-2xl font-black tracking-tight">Quase lá!</h1>
+              <p className="text-muted-foreground text-sm">
+                Escaneie o QR Code ou copie o código PIX para concluir o pagamento. Seu pedido será
+                confirmado automaticamente.
+              </p>
+            </div>
+            {pedidoSucesso.pixQrCodeBase64 && (
+              <div className="flex justify-center">
+                <div className="rounded-xl border p-4 bg-white dark:bg-white">
+                  <img
+                    src={`data:image/png;base64,${pedidoSucesso.pixQrCodeBase64}`}
+                    alt="QR Code PIX"
+                    className="w-52 h-52"
+                  />
+                </div>
+              </div>
+            )}
+            <div className="rounded-xl bg-muted/50 p-4 space-y-2">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                Código PIX copia e cola
+              </p>
+              <p className="text-xs font-mono break-all select-all">{pedidoSucesso.pixQrCode}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full gap-2"
+                onClick={() => {
+                  navigator.clipboard.writeText(pedidoSucesso!.pixQrCode!);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+              >
+                {copied ? (
+                  <Check className="h-4 w-4 text-green-500" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+                {copied ? "Copiado!" : "Copiar Código PIX"}
+              </Button>
+            </div>
+            <div className="flex flex-col gap-3">
+              {pedidoSucesso.waUrl && (
+                <a href={pedidoSucesso.waUrl} target="_blank" rel="noopener noreferrer">
+                  <Button
+                    className="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white"
+                    size="lg"
+                  >
+                    <MessageCircle className="h-5 w-5 mr-2" />
+                    Avisar a loja pelo WhatsApp
+                  </Button>
+                </a>
+              )}
+              {isLoggedIn ? (
+                <Link to="/pedidos">
+                  <Button variant="outline" className="w-full" size="lg">
+                    Ver meus pedidos
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/login">
+                  <Button variant="outline" className="w-full" size="lg">
+                    Entrar para ver seus pedidos
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Regular success (approved online or dinheiro) ──────────────────────
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
@@ -426,8 +591,48 @@ function CheckoutPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="container mx-auto px-4 py-8 max-w-5xl">
-        <h1 className="text-3xl font-black tracking-tight mb-6">Finalizar Compra</h1>
-        <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-3">
+        {step === "payment_brick" && (
+          <div className="max-w-2xl mx-auto">
+            <h1 className="text-3xl font-black tracking-tight mb-6">Pagamento</h1>
+            <Card>
+              <CardContent className="pt-6">
+                <MercadoPagoCheckout
+                  amount={total}
+                  paymentMethod={form.pagamento as OnlinePaymentMethod}
+                  payerEmail={user?.email ?? ""}
+                  orderData={{
+                    clienteId: userId,
+                    nomeCliente: form.nome,
+                    telefone: form.telefone,
+                    tipoRecebimento: tipoRecebimento === "retirada" ? "RETIRADA" : "ENTREGA",
+                    rua: tipoRecebimento === "entrega" ? form.rua : "",
+                    numero: tipoRecebimento === "entrega" ? form.numero : "",
+                    complemento: tipoRecebimento === "entrega" ? form.complemento || null : null,
+                    referencia: tipoRecebimento === "entrega" ? form.referencia || null : null,
+                    bairroId: tipoRecebimento === "entrega" ? form.bairroId : null,
+                    precisaTroco: null,
+                    valorTroco: null,
+                    subtotal,
+                    taxaEntrega,
+                    valorTotal: total,
+                    itens: items.map((it) => ({
+                      produtoId: it.id,
+                      quantidade: it.quantidade,
+                      valorUnitario: it.preco,
+                      valorTotal: it.preco * it.quantidade,
+                    })),
+                  }}
+                  onSuccess={handlePaymentSuccess}
+                  onBack={() => setStep("form")}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+        {step === "form" && (
+          <>
+            <h1 className="text-3xl font-black tracking-tight mb-6">Finalizar Compra</h1>
+            <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             <Card>
               <CardHeader>
@@ -693,17 +898,34 @@ function CheckoutPage() {
                   <label className="flex items-center gap-3 rounded-xl border p-4 cursor-pointer hover:bg-muted/50">
                     <RadioGroupItem value="pix" id="pix" />
                     <QrCode className="h-5 w-5 text-primary" />
-                    <span className="font-medium">PIX (na entrega)</span>
+                    <div>
+                      <p className="font-medium">PIX</p>
+                      <p className="text-xs text-muted-foreground">Pagamento online instantâneo</p>
+                    </div>
                   </label>
                   <label className="flex items-center gap-3 rounded-xl border p-4 cursor-pointer hover:bg-muted/50">
-                    <RadioGroupItem value="cartao" id="cartao" />
+                    <RadioGroupItem value="cartao_credito" id="cartao_credito" />
                     <CreditCard className="h-5 w-5 text-primary" />
-                    <span className="font-medium">Cartão (na entrega)</span>
+                    <div>
+                      <p className="font-medium">Cartão de Crédito</p>
+                      <p className="text-xs text-muted-foreground">Parcelamento disponível</p>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-3 rounded-xl border p-4 cursor-pointer hover:bg-muted/50">
+                    <RadioGroupItem value="cartao_debito" id="cartao_debito" />
+                    <CreditCard className="h-5 w-5 text-primary" />
+                    <div>
+                      <p className="font-medium">Cartão de Débito</p>
+                      <p className="text-xs text-muted-foreground">Débito à vista</p>
+                    </div>
                   </label>
                   <label className="flex items-center gap-3 rounded-xl border p-4 cursor-pointer hover:bg-muted/50">
                     <RadioGroupItem value="dinheiro" id="dinheiro" />
                     <Banknote className="h-5 w-5 text-primary" />
-                    <span className="font-medium">Dinheiro</span>
+                    <div>
+                      <p className="font-medium">Dinheiro</p>
+                      <p className="text-xs text-muted-foreground">Pagamento na entrega</p>
+                    </div>
                   </label>
                 </RadioGroup>
               </CardContent>
@@ -822,12 +1044,18 @@ function CheckoutPage() {
                   disabled={submitting}
                   className="w-full rounded-2xl py-6 text-base font-bold"
                 >
-                  {submitting ? "Enviando..." : "Confirmar Pedido"}
+                  {submitting
+                    ? "Enviando..."
+                    : form.pagamento !== "dinheiro"
+                      ? "Continuar para Pagamento"
+                      : "Confirmar Pedido"}
                 </Button>
               </CardContent>
             </Card>
           </div>
-        </form>
+            </form>
+          </>
+        )}
       </main>
     </div>
   );

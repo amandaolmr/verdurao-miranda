@@ -37,6 +37,15 @@ const PAGAMENTO_LABEL: Record<string, string> = {
   cartao_credito: "Cartão de Crédito",
   cartao_debito: "Cartão de Débito",
   dinheiro: "Dinheiro",
+  // legacy values
+  cartao: "Cartão (entrega)",
+};
+
+const STATUS_PAGAMENTO_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  aprovado:  { label: "Pago",     variant: "default" },
+  pendente:  { label: "Aguardando Pagamento", variant: "secondary" },
+  recusado:  { label: "Pagamento Recusado",   variant: "destructive" },
+  cancelado: { label: "Pagamento Cancelado",  variant: "outline" },
 };
 
 let _audioCtx: AudioContext | null = null;
@@ -410,6 +419,11 @@ function AdminOrders() {
                       <Badge variant="outline">
                         {PAGAMENTO_LABEL[o.forma_pagamento] ?? o.forma_pagamento}
                       </Badge>
+                      {o.status_pagamento && STATUS_PAGAMENTO_LABEL[o.status_pagamento] && (
+                        <Badge variant={STATUS_PAGAMENTO_LABEL[o.status_pagamento].variant}>
+                          {STATUS_PAGAMENTO_LABEL[o.status_pagamento].label}
+                        </Badge>
+                      )}
                       {o.forma_pagamento === "dinheiro" && (
                         <Badge variant="secondary">
                           Troco:{" "}
@@ -423,6 +437,8 @@ function AdminOrders() {
                           <Button
                             size="sm"
                             className="bg-green-600 hover:bg-green-700 text-white"
+                            disabled={o.status_pagamento === "pendente" || o.status_pagamento === "recusado"}
+                            title={o.status_pagamento === "pendente" ? "Aguardando confirmação do pagamento" : o.status_pagamento === "recusado" ? "Pagamento recusado" : undefined}
                             onClick={async () => {
                               await updateStatus(o.id, "em_separacao");
                               handlePrint(o);

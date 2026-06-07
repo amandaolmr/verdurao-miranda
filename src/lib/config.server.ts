@@ -19,8 +19,28 @@ import process from "node:process";
 export function getServerConfig() {
   return {
     nodeEnv: process.env.NODE_ENV,
-    // Add server-only values here, e.g.:
-    //   databaseUrl: process.env.DATABASE_URL,
-    //   stripeSecretKey: process.env.STRIPE_SECRET_KEY,
+  };
+}
+
+/**
+ * Mercado Pago server-only credentials.
+ * Set these in your .env file (local) and as Cloudflare Workers secrets (prod):
+ *   wrangler secret put MP_ACCESS_TOKEN
+ *   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+ */
+export function getMercadoPagoConfig() {
+  return {
+    // Secret key — never exposed to the client
+    accessToken: process.env.MP_ACCESS_TOKEN ?? "",
+  };
+}
+
+export function getSupabaseAdminConfig() {
+  return {
+    url:
+      process.env.VITE_SUPABASE_URL ??
+      process.env.SUPABASE_URL ??
+      "",
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
   };
 }
