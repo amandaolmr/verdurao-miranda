@@ -237,6 +237,7 @@ function OrdersPage() {
           </div>
         )}
 
+        {loading ? (
           <p className="text-muted-foreground">Carregando...</p>
         ) : loadError ? (
           <Card>
