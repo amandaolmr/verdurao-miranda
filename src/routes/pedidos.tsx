@@ -3,14 +3,18 @@ import { Navbar } from "@/components/Navbar";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useConfig, type ConfigLoja } from "@/hooks/useConfig";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Package, RotateCcw, RefreshCcw, AlertCircle } from "lucide-react";
+import { Package, RotateCcw, RefreshCcw, AlertCircle, MessageCircle, CheckCircle2, X } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/pedidos")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    success: typeof search.success === "string" ? search.success : undefined,
+  }),
   component: OrdersPage,
 });
 
@@ -22,8 +26,30 @@ const STATUS_LABEL: Record<string, string> = {
   cancelado: "Cancelado",
 };
 
+const PAGAMENTO_LABEL: Record<string, string> = {
+  pix: "PIX",
+  cartao_credito: "Cartão de Crédito",
+  cartao_debito: "Cartão de Débito",
+  dinheiro: "Dinheiro",
+  cartao: "Cartão (na entrega)",
+};
+
+function buildWaUrl(config: ConfigLoja | null, orderId: string): string | null {
+  if (!config?.whatsapp) return null;
+  const numero = config.whatsapp.replace(/\D/g, "");
+  const fone = numero.startsWith("55") ? numero : `55${numero}`;
+  const shortId = orderId.slice(0, 8).toUpperCase();
+  const msg = `Olá! Gostaria de falar sobre o pedido #${shortId}.`;
+  return `https://wa.me/${fone}?text=${encodeURIComponent(msg)}`;
+}
+
 function OrdersPage() {
   const { user, session, loading: authLoading } = useAuth();
+  const { success } = Route.useSearch();
+  const config = useConfig();
+  const [showSuccessBanner, setShowSuccessBanner] = useState(
+    () => success === "1" || success === "true",
+  );
   const [orders, setOrders] = useState<any[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -125,6 +151,39 @@ function OrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-dismiss do banner de sucesso após 5s
+  useEffect(() => {
+    if (!showSuccessBanner) return;
+    const t = setTimeout(() => setShowSuccessBanner(false), 5000);
+    return () => clearTimeout(t);
+  }, [showSuccessBanner]);
+
+  // Realtime: atualiza status do pedido sem precisar recarregar a página
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`pedidos-user-${user.id}`)
+      .on(
+        "postgres_changes" as any,
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "pedidos",
+          filter: `cliente_id=eq.${user.id}`,
+        },
+        (payload: any) => {
+          console.log("[pedidos] realtime update:", payload);
+          setOrders((prev) =>
+            prev.map((o) => (o.id === payload.new.id ? { ...o, ...payload.new } : o)),
+          );
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
   const handleRepeat = (order: any) => {
     const itens = order.itens_pedido ?? [];
     const validos = itens.filter((it: any) => it.produtos);
@@ -158,7 +217,26 @@ function OrdersPage() {
       <main className="container mx-auto px-4 py-8 max-w-3xl space-y-6">
         <h1 className="text-3xl font-black tracking-tight">Meus Pedidos</h1>
 
-        {loading ? (
+        {showSuccessBanner && (
+          <div className="flex items-start gap-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-3">
+            <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="font-semibold text-green-800 dark:text-green-300 text-sm">
+                Pedido realizado com sucesso!
+              </p>
+              <p className="text-xs text-green-700 dark:text-green-400">
+                Você pode acompanhar o andamento do seu pedido abaixo.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowSuccessBanner(false)}
+              className="text-green-600 hover:text-green-800 dark:text-green-400"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
           <p className="text-muted-foreground">Carregando...</p>
         ) : loadError ? (
           <Card>
@@ -203,10 +281,15 @@ function OrdersPage() {
             <Card key={o.id}>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle className="text-base">Pedido #{o.id.slice(0, 8)}</CardTitle>
+                  <CardTitle className="text-base">Pedido #{o.id.slice(0, 8).toUpperCase()}</CardTitle>
                   <p className="text-xs text-muted-foreground">
                     {new Date(o.criado_em).toLocaleString("pt-BR")}
                   </p>
+                  {o.forma_pagamento && (
+                    <p className="text-xs text-muted-foreground">
+                      {PAGAMENTO_LABEL[o.forma_pagamento] ?? o.forma_pagamento}
+                    </p>
+                  )}
                 </div>
                 <Badge variant="secondary">{STATUS_LABEL[o.status] || o.status}</Badge>
               </CardHeader>
@@ -227,7 +310,22 @@ function OrdersPage() {
                     R$ {Number(o.valor_total).toFixed(2).replace(".", ",")}
                   </span>
                 </div>
-                <div className="pt-2">
+                <div className="pt-2 flex flex-col gap-2">
+                  {buildWaUrl(config, o.id) && (
+                    <a
+                      href={buildWaUrl(config, o.id)!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button
+                        size="sm"
+                        className="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white gap-2"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        Falar com a Loja
+                      </Button>
+                    </a>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"

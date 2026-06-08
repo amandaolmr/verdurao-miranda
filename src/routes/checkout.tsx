@@ -324,65 +324,8 @@ function CheckoutPage() {
 
       clearCart();
 
-      // Monta URL do WhatsApp (não abre automaticamente para evitar bloqueio de popup)
-      let waUrl: string | undefined;
-      if (config?.whatsapp) {
-        const numero = config.whatsapp.replace(/\D/g, "");
-        const fone = numero.startsWith("55") ? numero : `55${numero}`;
-        const pagamentoLabel: Record<string, string> = {
-          pix: "PIX (online)",
-          cartao_credito: "Cartão de Crédito (online)",
-          cartao_debito: "Cartão de Débito (online)",
-          dinheiro: "Dinheiro",
-          cartao: "Cartão (na entrega)",
-        };
-        const bairroNome = bairros.find((b: any) => b.id === form.bairroId)?.nome ?? "";
-        const linhasItens = items
-          .map((it) => {
-            const qty = it.permite_fracionamento
-              ? `${it.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} ${formatUnidade(it.unidade_venda)}`
-              : `${it.quantidade}x`;
-            const subtotalItem = (it.preco * it.quantidade).toFixed(2).replace(".", ",");
-            return `• ${qty} ${it.nome} — R$ ${subtotalItem}`;
-          })
-          .join("\n");
-        const enderecoBloco =
-          tipoRecebimento === "entrega"
-            ? `*Entrega em:*\n${form.rua}, ${form.numero}${form.complemento ? ` — ${form.complemento}` : ""}${form.referencia ? `\nRef: ${form.referencia}` : ""}\nBairro ${bairroNome}`
-            : `*Retirada na loja*`;
-        const trocoBloco =
-          form.pagamento === "dinheiro" && precisaTroco === "sim" && valorTroco
-            ? `\n*Troco para:* R$ ${valorTroco}`
-            : form.pagamento === "dinheiro" && precisaTroco === "nao"
-              ? "\n*Sem troco necessário*"
-              : "";
-        const msg = [
-          `*${config.nome_loja || "Verdurão Miranda"}*`,
-          `*Pedido #${pedido.id.slice(0, 8).toUpperCase()}*`,
-          ``,
-          `*Cliente:* ${form.nome}`,
-          `*Telefone:* ${form.telefone}`,
-          ``,
-          `*Itens:*`,
-          linhasItens,
-          ``,
-          `*Subtotal:* R$ ${subtotal.toFixed(2).replace(".", ",")}`,
-          taxaEntrega > 0
-            ? `*Taxa de entrega:* R$ ${taxaEntrega.toFixed(2).replace(".", ",")}`
-            : null,
-          `*Total:* R$ ${total.toFixed(2).replace(".", ",")}`,
-          ``,
-          enderecoBloco,
-          ``,
-          `*Pagamento:* ${pagamentoLabel[form.pagamento] ?? form.pagamento}${trocoBloco}`,
-        ]
-          .filter((l) => l !== null)
-          .join("\n");
-        waUrl = `https://wa.me/${fone}?text=${encodeURIComponent(msg)}`;
-      }
-
-      setPedidoSucesso({ waUrl });
-      toast.success("Pedido realizado com sucesso!");
+      // Redireciona para meus pedidos com banner de sucesso
+      navigate({ to: "/pedidos", search: { success: "1" } });
     } catch (err: any) {
       toast.error(err.message || "Erro ao finalizar pedido");
     } finally {
@@ -392,6 +335,13 @@ function CheckoutPage() {
 
   // Called by MercadoPagoCheckout after a successful server-side payment + order creation
   const handlePaymentSuccess = (result: PaymentResult) => {
+    clearCart();
+    // Cartão aprovado → redireciona direto para meus pedidos
+    if (result.status === "approved") {
+      navigate({ to: "/pedidos", search: { success: "1" } });
+      return;
+    }
+    // PIX pendente → mostra tela com QR code para o usuário pagar
     let waUrl: string | undefined;
     if (config?.whatsapp) {
       const numero = config.whatsapp.replace(/\D/g, "");
@@ -410,16 +360,6 @@ function CheckoutPage() {
         tipoRecebimento === "entrega"
           ? `*Entrega em:*\n${form.rua}, ${form.numero}${form.complemento ? ` — ${form.complemento}` : ""}${form.referencia ? `\nRef: ${form.referencia}` : ""}\nBairro ${bairroNome}`
           : `*Retirada na loja*`;
-      const pagamentoOpts: Record<string, string> = {
-        pix: "PIX (online)",
-        cartao_credito: "Cartão de Crédito (online)",
-        cartao_debito: "Cartão de Débito (online)",
-        dinheiro: "Dinheiro",
-      };
-      const statusBloco =
-        result.status === "approved"
-          ? "✅ Pagamento aprovado"
-          : "⏳ PIX gerado — aguardando pagamento";
       const msg = [
         `*${config.nome_loja || "Verdurão Miranda"}*`,
         `*Pedido #${(result.orderId ?? "").slice(0, 8).toUpperCase()}*`,
@@ -438,20 +378,19 @@ function CheckoutPage() {
         ``,
         enderecoBloco,
         ``,
-        `*Pagamento:* ${pagamentoOpts[form.pagamento] ?? form.pagamento}`,
-        `*Status:* ${statusBloco}`,
+        `*Pagamento:* PIX`,
+        `*Status:* ⏳ PIX gerado — aguardando pagamento`,
       ]
         .filter((l) => l !== null)
         .join("\n");
       waUrl = `https://wa.me/${fone}?text=${encodeURIComponent(msg)}`;
     }
-    clearCart();
     setPedidoSucesso({
       waUrl,
       pixQrCode: result.pixQrCode ?? undefined,
       pixQrCodeBase64: result.pixQrCodeBase64 ?? undefined,
       orderId: result.orderId ?? undefined,
-      isPending: result.status === "pending",
+      isPending: true,
     });
   };
 
