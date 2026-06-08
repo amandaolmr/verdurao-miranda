@@ -15,6 +15,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
+import { ADMIN_LOGIN_KEY } from "@/hooks/AuthContext";
+
+/** TTL da sessão administrativa: 12 horas */
+const ADMIN_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+
+function isAdminSessionExpired(): boolean {
+  const ts = localStorage.getItem(ADMIN_LOGIN_KEY);
+  if (!ts) return false;
+  return Date.now() - Number(ts) > ADMIN_SESSION_TTL_MS;
+}
 
 export const Route = createFileRoute("/admin")({
   component: AdminLayout,
@@ -47,11 +57,20 @@ function AdminLayout() {
     // sem nenhuma chamada de rede, e valida a sessão em background.
     const cachedUid = sessionStorage.getItem("admin_verified_uid");
     if (cachedUid) {
+      // Verifica TTL de 12h antes de confiar no cache
+      if (isAdminSessionExpired()) {
+        sessionStorage.removeItem("admin_verified_uid");
+        localStorage.removeItem(ADMIN_LOGIN_KEY);
+        supabase.auth.signOut().finally(() => navigate({ to: "/admin/login" }));
+        return;
+      }
+
       setChecking(false);
       // Validação silenciosa: se sessão expirou, redireciona sem tela de loading
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (!session || session.user.id !== cachedUid) {
           sessionStorage.removeItem("admin_verified_uid");
+          localStorage.removeItem(ADMIN_LOGIN_KEY);
           navigate({ to: "/admin/login" });
         }
       });
@@ -90,6 +109,10 @@ function AdminLayout() {
         }
 
         sessionStorage.setItem("admin_verified_uid", session.user.id);
+        // Registra timestamp do login se ainda não foi feito (primeiro acesso)
+        if (!localStorage.getItem(ADMIN_LOGIN_KEY)) {
+          localStorage.setItem(ADMIN_LOGIN_KEY, String(Date.now()));
+        }
         setChecking(false);
       } catch (e) {
         console.error("[Admin] Erro na verificação de acesso:", e);
@@ -128,6 +151,7 @@ function AdminLayout() {
 
   const handleLogout = async () => {
     sessionStorage.removeItem("admin_verified_uid");
+    localStorage.removeItem(ADMIN_LOGIN_KEY);
     await supabase.auth.signOut();
     navigate({ to: "/admin/login" });
   };

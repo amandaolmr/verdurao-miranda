@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { ADMIN_LOGIN_KEY } from "@/hooks/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +54,8 @@ function AdminLogin() {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
+      // Registra timestamp do login para controle de TTL (12h)
+      localStorage.setItem(ADMIN_LOGIN_KEY, String(Date.now()));
       sessionStorage.setItem("admin_verified_uid", data.user.id);
       navigate({ to: "/admin" });
     } catch {

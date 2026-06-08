@@ -52,14 +52,15 @@ function buildWaUrl(config: ConfigLoja | null, orderId: string): string | null {
 }
 
 function OrdersPage() {
-  const { user, session, loading: authLoading } = useAuth({ redirectToLogin: true });
+  const { user, session, loading: authLoading, initialized } = useAuth({ redirectToLogin: true });
   const { success } = Route.useSearch();
   const config = useConfig();
   const [showSuccessBanner, setShowSuccessBanner] = useState(
     () => success === "1" || success === "true",
   );
   const [orders, setOrders] = useState<any[]>([]);
-  const [ordersLoading, setOrdersLoading] = useState(false);
+  // true inicial evita flash de "sem pedidos" antes do primeiro fetch terminar
+  const [ordersLoading, setOrdersLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
@@ -69,8 +70,9 @@ function OrdersPage() {
   const { addToCart, clearCart } = useCart();
   const navigate = useNavigate();
 
-  // loading combinado: espera auth resolver, depois espera query
-  const loading = authLoading || ordersLoading;
+  // loading combinado: espera auth inicializar, depois espera query.
+  // Usa `initialized` (não `authLoading`) para evitar loop após retorno do bfcache.
+  const loading = !initialized || ordersLoading;
 
   // Ref para o user.id atual — usado no visibilitychange sem precisar
   // re-registrar o listener quando o user muda.
@@ -79,6 +81,23 @@ function OrdersPage() {
 
   // Mutex: evita chamadas concorrentes
   const fetchingRef = useRef(false);
+
+  // Conjunto de AbortControllers em voo — abortados todos no desmonte do componente.
+  // Isso previne que timers de 10s de visitas anteriores disparem depois do remonte
+  // e cancelem requests HTTP/2 da nova instância do componente.
+  const activeControllersRef = useRef<Set<AbortController>>(new Set());
+
+  // Aborta TODOS os requests em andamento ao navegar para fora desta página.
+  useEffect(() => {
+    return () => {
+      // Reseta o mutex ANTES de abortar, para o novo mount poder chamar fetchOrders
+      fetchingRef.current = false;
+      for (const ctrl of activeControllersRef.current) {
+        ctrl.abort();
+      }
+      activeControllersRef.current.clear();
+    };
+  }, []);
 
   async function fetchOrders(uid: string) {
     if (fetchingRef.current) return;
@@ -92,31 +111,54 @@ function OrdersPage() {
     console.log("[pedidos] auth.user=", user);
     console.log("[pedidos] auth.session=", session);
 
-    // Timeout de 10s — evita travar para sempre no Safari iOS
+    // Controlador para cancelamento por desmonte do componente.
+    // NÃO passamos esse sinal direto ao Supabase para evitar cancelar streams
+    // HTTP/2 compartilhados que afetem requests de outras instâncias.
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-      console.warn("[pedidos] Timeout 10s atingido — abortando query");
-    }, 10_000);
+    activeControllersRef.current.add(controller);
+
+    let isTimedOut = false;
+
+    // Race entre a query e um timeout de 20s (ou desmonte imediato)
+    const raceTimeout = new Promise<never>((_, reject) => {
+      const timer = setTimeout(() => {
+        isTimedOut = true;
+        controller.abort();
+        console.warn("[pedidos] Timeout 20s atingido — abortando query");
+        reject(new Error("TIMEOUT"));
+      }, 20_000);
+
+      // Desmonte imediato cancela o race antes do timer
+      controller.signal.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          if (!isTimedOut) reject(new DOMException("unmounted", "AbortError"));
+        },
+        { once: true },
+      );
+    });
 
     try {
       console.log("[pedidos] Supabase query START (etapa 1 - lista leve)");
-      const { data: pedidos, error } = await supabase
-        .from("pedidos")
-        .select(
-          `
+
+      const { data: pedidos, error } = (await Promise.race([
+        supabase
+          .from("pedidos")
+          .select(
+            `
           id,
           criado_em,
           status,
           forma_pagamento,
           valor_total
         `,
-        )
-        .eq("cliente_id", uid)
-        .order("criado_em", { ascending: false })
-        .abortSignal(controller.signal);
+          )
+          .eq("cliente_id", uid)
+          .order("criado_em", { ascending: false }),
+        raceTimeout,
+      ])) as { data: any; error: any };
 
-      clearTimeout(timeoutId);
       console.log("[pedidos] Supabase query END");
       console.log("[pedidos] pedidos carregados=", pedidos);
       console.log("[pedidos] erro da query=", error);
@@ -129,18 +171,28 @@ function OrdersPage() {
       setDetailsLoadingById({});
       setDetailsErrorById({});
     } catch (err: any) {
-      clearTimeout(timeoutId);
-      const isTimeout = controller.signal.aborted || err?.name === "AbortError";
+      // Se o controller já foi removido do Set pelo cleanup de desmonte,
+      // o componente foi desmontado — não atualizar estado da nova instância.
+      if (!activeControllersRef.current.has(controller)) return;
+
+      const isAbortOrTimeout =
+        isTimedOut || err?.name === "AbortError" || err?.message === "TIMEOUT";
       console.error("[pedidos] Erro inesperado:", err);
       setLoadError(true);
       setErrorMessage(
-        isTimeout
-          ? "A consulta demorou mais de 10s. Verifique sua conexão e tente novamente."
+        isAbortOrTimeout
+          ? "A consulta demorou mais de 20s. Verifique sua conexão e tente novamente."
           : (err?.message ?? String(err) ?? "Erro desconhecido"),
       );
     } finally {
-      console.log("[pedidos] LOADING END ordersLoading → false");
-      setOrdersLoading(false);
+      // Só atualiza o estado de loading se o controller ainda está no Set
+      // (ou seja, não foi desmontado pelo cleanup)
+      const wasActive = activeControllersRef.current.has(controller);
+      activeControllersRef.current.delete(controller);
+      if (wasActive) {
+        console.log("[pedidos] LOADING END ordersLoading → false");
+        setOrdersLoading(false);
+      }
       fetchingRef.current = false;
     }
   }
@@ -153,22 +205,40 @@ function OrdersPage() {
     setDetailsErrorById((prev) => ({ ...prev, [orderId]: null }));
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-      console.warn("[pedidos] Timeout 10s atingido — abortando detalhes do pedido");
-    }, 10_000);
+    activeControllersRef.current.add(controller); // registra para cancelamento no desmonte
+
+    let isTimedOut = false;
+
+    const raceTimeout = new Promise<never>((_, reject) => {
+      const timer = setTimeout(() => {
+        isTimedOut = true;
+        controller.abort();
+        console.warn("[pedidos] Timeout 20s atingido — abortando detalhes do pedido");
+        reject(new Error("TIMEOUT"));
+      }, 20_000);
+
+      controller.signal.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer);
+          if (!isTimedOut) reject(new DOMException("unmounted", "AbortError"));
+        },
+        { once: true },
+      );
+    });
 
     try {
       console.log("[pedidos] Supabase query START (etapa 2 - detalhes)", orderId);
-      const { data, error } = await supabase
-        .from("itens_pedido")
-        .select(
-          "*, produtos(id, nome, preco, unidade_venda, imagem_url, permite_fracionamento, quantidade_minima)",
-        )
-        .eq("pedido_id", orderId)
-        .abortSignal(controller.signal);
 
-      clearTimeout(timeoutId);
+      const { data, error } = (await Promise.race([
+        supabase
+          .from("itens_pedido")
+          .select(
+            "*, produtos(id, nome, preco, unidade_venda, imagem_url, permite_fracionamento, quantidade_minima)",
+          )
+          .eq("pedido_id", orderId),
+        raceTimeout,
+      ])) as { data: any; error: any };
 
       if (error) throw error;
 
@@ -176,34 +246,45 @@ function OrdersPage() {
       setOrderItemsById((prev) => ({ ...prev, [orderId]: itens }));
       return itens;
     } catch (err: any) {
-      clearTimeout(timeoutId);
-      const isTimeout = controller.signal.aborted || err?.name === "AbortError";
-      const message = isTimeout
-        ? "A consulta de detalhes demorou mais de 10s. Tente novamente."
+      // Desmonte do componente — não atualizar estado
+      if (!activeControllersRef.current.has(controller)) return [];
+
+      const isAbortOrTimeout =
+        isTimedOut || err?.name === "AbortError" || err?.message === "TIMEOUT";
+      const message = isAbortOrTimeout
+        ? "A consulta de detalhes demorou mais de 20s. Tente novamente."
         : (err?.message ?? String(err) ?? "Erro desconhecido");
 
       console.error("[pedidos] Erro ao carregar detalhes do pedido:", err);
       setDetailsErrorById((prev) => ({ ...prev, [orderId]: message }));
       return [];
     } finally {
-      setDetailsLoadingById((prev) => ({ ...prev, [orderId]: false }));
+      const wasActive = activeControllersRef.current.has(controller);
+      activeControllersRef.current.delete(controller); // remove do conjunto ativo
+      if (wasActive) {
+        setDetailsLoadingById((prev) => ({ ...prev, [orderId]: false }));
+      }
     }
   }
 
-  // Dispara a query assim que auth resolver e user estiver disponível.
+  // Dispara a query apenas após auth estar completamente inicializado.
+  // `initialized` é estável (nunca volta a false) — evita loops infinitos.
   // Depende de user?.id para reagir também quando a sessão chega depois do
   // localStorage (ex: TOKEN_REFRESHED no Safari iOS após initializePromise).
   useEffect(() => {
-    if (authLoading) return;
+    if (!initialized) return;
     if (!user) {
+      // Auth resolvido sem usuário: para o loading para mostrar o card de login.
+      // O useAuth com redirectToLogin=true vai redirecionar em seguida.
       console.log("[pedidos] auth resolvido — usuário não autenticado");
-      return; // mostrará tela de login
+      setOrdersLoading(false);
+      return;
     }
     console.log("[pedidos] auth resolvido — user.id=", user.id);
     console.log("[pedidos] session=", session);
     fetchOrders(user.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user?.id]);
+  }, [initialized, user?.id]);
 
   // Recarrega quando usuário volta ao app (ex: retornando do WhatsApp)
   useEffect(() => {

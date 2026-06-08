@@ -67,7 +67,7 @@ function AccountPage() {
   const navigate = useNavigate();
   const { data: bairros = [] } = useBairros();
   const config = useConfig();
-  const { user, session, loading, error } = useAuth({ redirectToLogin: true });
+  const { user, session, loading, initialized, error } = useAuth({ redirectToLogin: true });
 
   useEffect(() => {
     console.log("user", user);
@@ -108,7 +108,9 @@ function AccountPage() {
   };
 
   useEffect(() => {
-    if (!user?.id) return;
+    // Aguarda auth estar completamente inicializado antes de carregar dados.
+    // `initialized` é estável — evita loop quando a sessão é revalidada.
+    if (!initialized || !user?.id) return;
     const uid = user.id;
 
     Promise.all([
@@ -153,7 +155,7 @@ function AccountPage() {
       },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [initialized, user?.id]);
 
   // ── Dados da conta ─────────────────────────────────────────────────────────
   const saveDados = async () => {

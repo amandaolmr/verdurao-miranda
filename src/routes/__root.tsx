@@ -1,5 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CartProvider } from "@/hooks/CartContext";
+import { AuthProvider } from "@/hooks/AuthContext";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
   Outlet,
   Link,
@@ -226,11 +228,15 @@ function RootComponent() {
   }, [router, queryClient]);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <CartProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-      </CartProvider>
-    </QueryClientProvider>
+    <AuthProvider>
+      <ErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <CartProvider>
+            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+            <Outlet />
+          </CartProvider>
+        </QueryClientProvider>
+      </ErrorBoundary>
+    </AuthProvider>
   );
 }
