@@ -490,12 +490,14 @@ function CheckoutPage() {
             </div>
             <div className="flex flex-col gap-3">
               {pedidoSucesso.waUrl && (
-                <a href={pedidoSucesso.waUrl} target="_blank" rel="noopener noreferrer">
-                  <Button className="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white" size="lg">
-                    <MessageCircle className="h-5 w-5 mr-2" />
-                    Avisar a loja pelo WhatsApp
-                  </Button>
-                </a>
+                <Button
+                  className="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white"
+                  size="lg"
+                  onClick={() => window.open(pedidoSucesso!.waUrl!, "_blank")}
+                >
+                  <MessageCircle className="h-5 w-5 mr-2" />
+                  Avisar a loja pelo WhatsApp
+                </Button>
               )}
               {isLoggedIn ? (
                 <Link to="/pedidos">

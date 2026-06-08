@@ -323,15 +323,14 @@ function OrdersPage() {
                 </div>
                 <div className="pt-2 flex flex-col gap-2">
                   {buildWaUrl(config, o.id) && (
-                    <a href={buildWaUrl(config, o.id)!} target="_blank" rel="noopener noreferrer">
-                      <Button
-                        size="sm"
-                        className="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white gap-2"
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                        Falar com a Loja
-                      </Button>
-                    </a>
+                    <Button
+                      size="sm"
+                      className="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white gap-2"
+                      onClick={() => window.open(buildWaUrl(config, o.id)!, "_blank")}
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      Falar com a Loja
+                    </Button>
                   )}
                   <Button
                     variant="outline"
