@@ -133,26 +133,8 @@ function OrdersPage() {
     setLoadError(false);
     setErrorMessage(null);
 
-    console.log("[pedidos] fetchOrders START uid=", uid);
-    console.log("[pedidos] auth.user=", user?.id ?? null);
-
-    // Diagnóstico de sessão/token — ajuda a identificar expiração no Safari iOS
-    try {
-      const {
-        data: { session: diagSession },
-      } = await supabase.auth.getSession();
-      const expiresAt = diagSession?.expires_at;
-      const tokenExpirado = expiresAt ? Math.floor(Date.now() / 1000) > expiresAt : null;
-      console.log("[pedidos] DIAG token presente:", !!diagSession?.access_token);
-      console.log(
-        "[pedidos] DIAG token expira:",
-        expiresAt ? new Date(expiresAt * 1000).toISOString() : "N/A",
-      );
-      console.log("[pedidos] DIAG token expirado:", tokenExpirado);
-      console.log("[pedidos] DIAG user.id:", diagSession?.user?.id ?? null);
-    } catch (diagErr) {
-      console.warn("[pedidos] DIAG erro ao verificar sessão:", diagErr);
-    }
+    const t0 = performance.now();
+    console.log("[Pedidos] Consulta iniciada — uid=", uid);
 
     // Controlador para cancelamento por desmonte do componente.
     // NÃO passamos esse sinal direto ao Supabase para evitar cancelar streams
@@ -183,28 +165,22 @@ function OrdersPage() {
     });
 
     try {
-      console.log("[pedidos] Supabase query START (etapa 1 - lista leve)");
-
       const { data: pedidos, error } = (await Promise.race([
         supabase
           .from("pedidos")
-          .select(
-            `
-          id,
-          criado_em,
-          status,
-          forma_pagamento,
-          valor_total
-        `,
-          )
+          .select(`id, criado_em, status, forma_pagamento, valor_total`)
           .eq("cliente_id", uid)
           .order("criado_em", { ascending: false }),
         raceTimeout,
       ])) as { data: any; error: any };
 
-      console.log("[pedidos] Supabase query END");
-      console.log("[pedidos] pedidos carregados=", pedidos);
-      console.log("[pedidos] erro da query=", error);
+      const elapsed = Math.round(performance.now() - t0);
+      if (elapsed > 2000) {
+        console.warn(`[Pedidos] ⚠️ Query lenta: ${elapsed}ms (esperado < 2000ms)`);
+      } else {
+        console.log(`[Pedidos] Query executada em ${elapsed}ms`);
+      }
+      console.log(`[Pedidos] ${pedidos?.length ?? 0} pedido(s) encontrado(s)`);
 
       if (error) throw error;
 
@@ -270,9 +246,10 @@ function OrdersPage() {
       );
     });
 
-    try {
-      console.log("[pedidos] Supabase query START (etapa 2 - detalhes)", orderId);
+    const t1 = performance.now();
+    console.log("[Pedidos] Sessão carregada — buscando detalhes", orderId);
 
+    try {
       const { data, error } = (await Promise.race([
         supabase
           .from("itens_pedido")
@@ -284,6 +261,13 @@ function OrdersPage() {
       ])) as { data: any; error: any };
 
       if (error) throw error;
+
+      const elapsed1 = Math.round(performance.now() - t1);
+      if (elapsed1 > 2000) {
+        console.warn(`[Pedidos] ⚠️ Query de detalhes lenta: ${elapsed1}ms`);
+      } else {
+        console.log(`[Pedidos] Detalhes carregados em ${elapsed1}ms`);
+      }
 
       const itens = data || [];
       setOrderItemsById((prev) => ({ ...prev, [orderId]: itens }));
