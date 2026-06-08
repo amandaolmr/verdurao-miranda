@@ -326,7 +326,7 @@ function OrdersPage() {
                     <Button
                       size="sm"
                       className="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white gap-2"
-                      onClick={() => window.open(buildWaUrl(config, o.id)!, "_blank")}
+                      onClick={() => window.open(buildWaUrl(config, o.id)!, "_blank", "noopener,noreferrer")}
                     >
                       <MessageCircle className="h-4 w-4" />
                       Falar com a Loja

@@ -270,15 +270,16 @@ function Index() {
       {(() => {
         const raw = (config?.whatsapp || "5500999999999").replace(/\D/g, "");
         const waNumber = raw.startsWith("55") ? raw : `55${raw}`;
+        const waUrl = `https://wa.me/${waNumber}`;
         return (
-          <a
-            href={`https://wa.me/${waNumber}`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={() => window.open(waUrl, "_blank", "noopener,noreferrer")}
             className="fixed bottom-24 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-2xl transition-transform hover:scale-110 md:bottom-6"
+            aria-label="Falar com a loja pelo WhatsApp"
           >
             <MessageCircle className="h-8 w-8 fill-current" />
-          </a>
+          </button>
         );
       })()}
 
