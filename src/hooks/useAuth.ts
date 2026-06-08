@@ -34,6 +34,18 @@ export function useAuth(options?: UseAuthOptions): AuthState {
 
   useEffect(() => {
     let active = true;
+    let loadingFinished = false;
+
+    // Safety timer: força loading=false se getSession E onAuthStateChange
+    // não responderem em 8s (ex: Safari iOS quando initializePromise trava).
+    // Não mostra erro — silenciosamente encerra loading com a sessão disponível.
+    const safetyTimer = setTimeout(() => {
+      if (!active || loadingFinished) return;
+      loadingFinished = true;
+      console.warn("AUTH SAFETY TIMER — forçando loading=false após 8000ms");
+      setLoading(false);
+      console.log("AUTH LOADING FALSE (safety timer)");
+    }, 8_000);
 
     async function bootstrap() {
       console.log("AUTH START");
@@ -71,6 +83,8 @@ export function useAuth(options?: UseAuthOptions): AuthState {
       } finally {
         clearTimeout(watchdog);
         if (active) {
+          loadingFinished = true;
+          clearTimeout(safetyTimer);
           setLoading(false);
           console.log("AUTH LOADING FALSE");
           console.log("AUTH ELAPSED MS", Date.now() - startedAt);
@@ -134,12 +148,17 @@ export function useAuth(options?: UseAuthOptions): AuthState {
 
       // loading já foi finalizado pelo bootstrap; garante finalização caso
       // onAuthStateChange chegue antes do bootstrap em edge cases.
+      if (!loadingFinished) {
+        loadingFinished = true;
+        clearTimeout(safetyTimer);
+      }
       setLoading(false);
       console.log("AUTH LOADING FALSE (onAuthStateChange)");
     });
 
     return () => {
       active = false;
+      clearTimeout(safetyTimer);
       subscription.unsubscribe();
       window.removeEventListener("pageshow", handlePageShow);
     };
