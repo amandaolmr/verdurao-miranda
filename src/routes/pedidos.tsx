@@ -83,20 +83,46 @@ function OrdersPage() {
   const fetchingRef = useRef(false);
 
   // Conjunto de AbortControllers em voo — abortados todos no desmonte do componente.
-  // Isso previne que timers de 10s de visitas anteriores disparem depois do remonte
+  // Isso previne que timers de 20s de visitas anteriores disparem depois do remonte
   // e cancelem requests HTTP/2 da nova instância do componente.
   const activeControllersRef = useRef<Set<AbortController>>(new Set());
+
+  /**
+   * Aborta todos os requests em andamento e libera o mutex.
+   *
+   * Chamado:
+   *  - no cleanup de desmonte (navegação entre rotas)
+   *  - em visibilitychange=hidden (usuário foi para WhatsApp)
+   *  - em pageshow(persisted) bfcache restore (safety)
+   *
+   * Por quê abortar no HIDDEN e não no VISIBLE?
+   * O Safari iOS suspende timers quando a página vai para bfcache.
+   * Ao retornar, timers "atrasados" disparam imediatamente.
+   * Se o setTimeout de 20s estava a 15s quando a página congelou,
+   * ao retornar ele dispara em <1s — causando o erro "demorou mais de 20s".
+   * Abortando no HIDDEN, o timer é cancelado via abort-event-listener
+   * ANTES do bfcache congelar a página. Ao retornar, nenhum timer pendente.
+   */
+  function abortInFlight() {
+    console.log(
+      "[pedidos] abortInFlight — abortando",
+      activeControllersRef.current.size,
+      "request(s)",
+    );
+    fetchingRef.current = false;
+    for (const ctrl of activeControllersRef.current) {
+      ctrl.abort();
+    }
+    activeControllersRef.current.clear();
+  }
 
   // Aborta TODOS os requests em andamento ao navegar para fora desta página.
   useEffect(() => {
     return () => {
       // Reseta o mutex ANTES de abortar, para o novo mount poder chamar fetchOrders
-      fetchingRef.current = false;
-      for (const ctrl of activeControllersRef.current) {
-        ctrl.abort();
-      }
-      activeControllersRef.current.clear();
+      abortInFlight();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function fetchOrders(uid: string) {
@@ -108,8 +134,25 @@ function OrdersPage() {
     setErrorMessage(null);
 
     console.log("[pedidos] fetchOrders START uid=", uid);
-    console.log("[pedidos] auth.user=", user);
-    console.log("[pedidos] auth.session=", session);
+    console.log("[pedidos] auth.user=", user?.id ?? null);
+
+    // Diagnóstico de sessão/token — ajuda a identificar expiração no Safari iOS
+    try {
+      const {
+        data: { session: diagSession },
+      } = await supabase.auth.getSession();
+      const expiresAt = diagSession?.expires_at;
+      const tokenExpirado = expiresAt ? Math.floor(Date.now() / 1000) > expiresAt : null;
+      console.log("[pedidos] DIAG token presente:", !!diagSession?.access_token);
+      console.log(
+        "[pedidos] DIAG token expira:",
+        expiresAt ? new Date(expiresAt * 1000).toISOString() : "N/A",
+      );
+      console.log("[pedidos] DIAG token expirado:", tokenExpirado);
+      console.log("[pedidos] DIAG user.id:", diagSession?.user?.id ?? null);
+    } catch (diagErr) {
+      console.warn("[pedidos] DIAG erro ao verificar sessão:", diagErr);
+    }
 
     // Controlador para cancelamento por desmonte do componente.
     // NÃO passamos esse sinal direto ao Supabase para evitar cancelar streams
@@ -286,16 +329,69 @@ function OrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialized, user?.id]);
 
-  // Recarrega quando usuário volta ao app (ex: retornando do WhatsApp)
+  // Recarregamento ao retornar do WhatsApp / mudar de aba / bfcache Safari iOS
   useEffect(() => {
     function handleVisibility() {
-      if (document.visibilityState === "visible" && userIdRef.current) {
-        console.log("[pedidos] Página visível novamente — recarregando pedidos");
-        fetchOrders(userIdRef.current);
+      const uid = userIdRef.current;
+      console.log(
+        "[pedidos] visibilitychange —",
+        document.visibilityState,
+        "| uid=",
+        uid ?? "null",
+      );
+
+      if (document.visibilityState === "hidden") {
+        // Página vai para segundo plano (WhatsApp, bfcache, etc.)
+        // Aborta AGORA para que o timer da raceTimeout seja cancelado
+        // ANTES do Safari congelar a página. Sem isso, o timer fica
+        // "pausado" e dispara imediatamente ao retornar, causando o
+        // erro falso "demorou mais de 20s".
+        abortInFlight();
+        setOrdersLoading(false); // limpa spinner residual
+      } else if (document.visibilityState === "visible" && uid) {
+        // Retornou — busca pedidos frescos
+        console.log("[pedidos] visibilitychange visible — recarregando pedidos");
+        fetchOrders(uid);
       }
     }
+
+    // bfcache: Safari iOS restaura a página sem remontagem.
+    // pageshow(persisted=true) pode disparar após ou junto com visibilitychange.
+    // abortInFlight() aqui é um safety net caso a página tenha congelado com
+    // controller ativo (ex.: bfcache sem visibilitychange=hidden antes).
+    function handlePageShow(e: PageTransitionEvent) {
+      const uid = userIdRef.current;
+      console.log(
+        "[pedidos] pageshow — persisted=",
+        e.persisted,
+        "| uid=",
+        uid ?? "null",
+        "| fetchingRef=",
+        fetchingRef.current,
+      );
+
+      if (e.persisted && uid) {
+        // Garante que não há zombie controllers ou mutex bloqueado
+        abortInFlight();
+        fetchOrders(uid);
+      }
+    }
+
+    function handleFocus() {
+      // Fallback para browsers sem visibilitychange confiável
+      const uid = userIdRef.current;
+      console.log("[pedidos] window.focus — uid=", uid ?? "null");
+    }
+
     document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("focus", handleFocus);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
