@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -14,47 +14,74 @@ interface UseAuthOptions {
   loginPath?: string;
 }
 
-const GET_SESSION_TIMEOUT_MS = 5_000;
+const AUTH_WATCHDOG_MS = 5_000;
 
-async function getSessionWithTimeout(): Promise<{ session: Session | null; error: string | null }> {
-  console.log("AUTH GET SESSION");
-
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  const timeoutPromise = new Promise<{ timeout: true }>((resolve) => {
-    timeoutId = setTimeout(() => resolve({ timeout: true }), GET_SESSION_TIMEOUT_MS);
-  });
+function readSessionFromStorage(): Session | null {
+  if (typeof window === "undefined") return null;
 
   try {
-    const sessionPromise = supabase.auth
-      .getSession()
-      .then(({ data }) => ({ session: data.session }))
-      .catch((err) => {
-        throw err;
-      });
+    const projectRef = (import.meta.env.VITE_SUPABASE_URL as string)?.match(
+      /https?:\/\/([^.]+)\./,
+    )?.[1];
+    if (!projectRef) return null;
 
-    const result = await Promise.race([sessionPromise, timeoutPromise]);
+    const raw = localStorage.getItem(`sb-${projectRef}-auth-token`);
+    if (!raw) return null;
 
-    if ("timeout" in result) {
-      console.log("AUTH SESSION RESULT", null);
-      console.log("AUTH USER", null);
-      return {
-        session: null,
-        error: "Tempo limite de autenticação atingido. Verifique sua conexão e tente novamente.",
-      };
-    }
+    const parsed = JSON.parse(raw) as any;
+    const candidate = Array.isArray(parsed)
+      ? parsed[0]
+      : (parsed?.currentSession ?? parsed?.session ?? parsed);
 
-    console.log("AUTH SESSION RESULT", result.session);
-    console.log("AUTH USER", result.session?.user?.id ?? null);
-    return { session: result.session, error: null };
-  } catch (err: any) {
-    const message = err?.message ?? "Falha ao consultar sessão.";
-    console.log("AUTH SESSION RESULT", null);
-    console.log("AUTH USER", null);
-    console.error("AUTH GET SESSION ERROR", err);
-    return { session: null, error: message };
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
+    if (!candidate?.access_token || !candidate?.user) return null;
+    return candidate as Session;
+  } catch {
+    return null;
   }
+}
+
+async function getSessionWithDiagnostics(): Promise<{
+  session: Session | null;
+  error: string | null;
+}> {
+  console.log("AUTH GET SESSION");
+
+  const startedAt = Date.now();
+  const timeoutId = setTimeout(() => {
+    console.warn("AUTH TIMEOUT", `getSession ainda pendente após ${AUTH_WATCHDOG_MS}ms`);
+  }, AUTH_WATCHDOG_MS);
+  console.time("auth");
+
+  let session: Session | null = null;
+  let error: string | null = null;
+
+  try {
+    const { data } = await supabase.auth.getSession();
+    session = data.session;
+
+    // Diagnóstico adicional para Safari iOS: detecta getUser pendente/erro sem bloquear UI.
+    const getUserWatchdog = setTimeout(() => {
+      console.warn("AUTH TIMEOUT", `getUser ainda pendente após ${AUTH_WATCHDOG_MS}ms`);
+    }, AUTH_WATCHDOG_MS);
+    try {
+      await supabase.auth.getUser();
+    } catch (userErr) {
+      console.error("AUTH GET SESSION ERROR", userErr);
+    } finally {
+      clearTimeout(getUserWatchdog);
+    }
+  } catch (err: any) {
+    console.error("AUTH GET SESSION ERROR", err);
+    error = err?.message ?? "Falha ao consultar sessão.";
+  } finally {
+    clearTimeout(timeoutId);
+    console.log("AUTH SESSION RESULT", session);
+    console.log("AUTH USER", session?.user?.id ?? null);
+    console.log("AUTH ELAPSED MS", Date.now() - startedAt);
+    console.timeEnd("auth");
+  }
+
+  return { session, error };
 }
 
 /**
@@ -65,9 +92,14 @@ async function getSessionWithTimeout(): Promise<{ session: Session | null; error
  */
 export function useAuth(options?: UseAuthOptions): AuthState {
   const { redirectToLogin = false, loginPath = "/login" } = options ?? {};
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(readSessionFromStorage);
+  const [loading, setLoading] = useState(() => !readSessionFromStorage());
   const [error, setError] = useState<string | null>(null);
+  const sessionRef = useRef<Session | null>(session);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   useEffect(() => {
     let active = true;
@@ -87,18 +119,35 @@ export function useAuth(options?: UseAuthOptions): AuthState {
 
     const bootstrap = async () => {
       console.log("AUTH START");
-      setLoading(true);
+      const optimistic = readSessionFromStorage();
+      if (optimistic?.user) {
+        setSession(optimistic);
+        setError(null);
+        finishLoading();
+      } else {
+        setLoading(true);
+      }
+
       setError(null);
-      const initial = await getSessionWithTimeout();
-      applySession(initial.session, initial.error);
+      const initial = await getSessionWithDiagnostics();
+
+      // Não transforma lentidão em erro fatal; só exibe erro se não houver sessão válida.
+      const fallbackSession = optimistic ?? sessionRef.current;
+      const nextSession = initial.session ?? fallbackSession ?? null;
+      const nextError = nextSession ? null : initial.error;
+      applySession(nextSession, nextError);
     };
 
     const handlePageShow = async () => {
       console.log("AUTH START");
-      setLoading(true);
+      if (!sessionRef.current?.user) {
+        setLoading(true);
+      }
       setError(null);
-      const fresh = await getSessionWithTimeout();
-      applySession(fresh.session, fresh.error);
+      const fresh = await getSessionWithDiagnostics();
+      const nextSession = fresh.session ?? sessionRef.current ?? null;
+      const nextError = nextSession ? null : fresh.error;
+      applySession(nextSession, nextError);
     };
 
     void bootstrap();
