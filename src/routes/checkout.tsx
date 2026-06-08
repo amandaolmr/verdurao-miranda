@@ -72,7 +72,7 @@ function CheckoutPage() {
   const { items, subtotal, clearCart } = useCart();
   const { data: bairros = [] } = useBairros();
   const config = useConfig();
-  const { user, loading: authChecking } = useAuth();
+  const { user, loading: authChecking } = useAuth({ redirectToLogin: true });
   const isLoggedIn = !!user;
   const userId = user?.id ?? null;
   const userMeta = {

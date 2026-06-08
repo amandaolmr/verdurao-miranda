@@ -52,7 +52,7 @@ function buildWaUrl(config: ConfigLoja | null, orderId: string): string | null {
 }
 
 function OrdersPage() {
-  const { user, session, loading: authLoading } = useAuth();
+  const { user, session, loading: authLoading } = useAuth({ redirectToLogin: true });
   const { success } = Route.useSearch();
   const config = useConfig();
   const [showSuccessBanner, setShowSuccessBanner] = useState(
@@ -62,6 +62,10 @@ function OrdersPage() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
+  const [orderItemsById, setOrderItemsById] = useState<Record<string, any[]>>({});
+  const [detailsLoadingById, setDetailsLoadingById] = useState<Record<string, boolean>>({});
+  const [detailsErrorById, setDetailsErrorById] = useState<Record<string, string | null>>({});
   const { addToCart, clearCart } = useCart();
   const navigate = useNavigate();
 
@@ -96,11 +100,17 @@ function OrdersPage() {
     }, 10_000);
 
     try {
-      console.log("[pedidos] Supabase query START");
+      console.log("[pedidos] Supabase query START (etapa 1 - lista leve)");
       const { data: pedidos, error } = await supabase
         .from("pedidos")
         .select(
-          "*, itens_pedido(*, produtos(id, nome, preco, unidade_venda, imagem_url, permite_fracionamento, quantidade_minima))",
+          `
+          id,
+          criado_em,
+          status,
+          forma_pagamento,
+          valor_total
+        `,
         )
         .eq("cliente_id", uid)
         .order("criado_em", { ascending: false })
@@ -114,6 +124,10 @@ function OrdersPage() {
       if (error) throw error;
 
       setOrders(pedidos || []);
+      setExpandedOrders({});
+      setOrderItemsById({});
+      setDetailsLoadingById({});
+      setDetailsErrorById({});
     } catch (err: any) {
       clearTimeout(timeoutId);
       const isTimeout = controller.signal.aborted || err?.name === "AbortError";
@@ -128,6 +142,51 @@ function OrdersPage() {
       console.log("[pedidos] LOADING END ordersLoading → false");
       setOrdersLoading(false);
       fetchingRef.current = false;
+    }
+  }
+
+  async function fetchOrderDetails(orderId: string) {
+    if (detailsLoadingById[orderId]) return orderItemsById[orderId] ?? [];
+    if (orderItemsById[orderId]) return orderItemsById[orderId];
+
+    setDetailsLoadingById((prev) => ({ ...prev, [orderId]: true }));
+    setDetailsErrorById((prev) => ({ ...prev, [orderId]: null }));
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      console.warn("[pedidos] Timeout 10s atingido — abortando detalhes do pedido");
+    }, 10_000);
+
+    try {
+      console.log("[pedidos] Supabase query START (etapa 2 - detalhes)", orderId);
+      const { data, error } = await supabase
+        .from("itens_pedido")
+        .select(
+          "*, produtos(id, nome, preco, unidade_venda, imagem_url, permite_fracionamento, quantidade_minima)",
+        )
+        .eq("pedido_id", orderId)
+        .abortSignal(controller.signal);
+
+      clearTimeout(timeoutId);
+
+      if (error) throw error;
+
+      const itens = data || [];
+      setOrderItemsById((prev) => ({ ...prev, [orderId]: itens }));
+      return itens;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      const isTimeout = controller.signal.aborted || err?.name === "AbortError";
+      const message = isTimeout
+        ? "A consulta de detalhes demorou mais de 10s. Tente novamente."
+        : (err?.message ?? String(err) ?? "Erro desconhecido");
+
+      console.error("[pedidos] Erro ao carregar detalhes do pedido:", err);
+      setDetailsErrorById((prev) => ({ ...prev, [orderId]: message }));
+      return [];
+    } finally {
+      setDetailsLoadingById((prev) => ({ ...prev, [orderId]: false }));
     }
   }
 
@@ -192,8 +251,19 @@ function OrdersPage() {
     };
   }, [user?.id]);
 
-  const handleRepeat = (order: any) => {
-    const itens = order.itens_pedido ?? [];
+  const handleToggleDetails = async (orderId: string) => {
+    const isExpanded = !!expandedOrders[orderId];
+    if (isExpanded) {
+      setExpandedOrders((prev) => ({ ...prev, [orderId]: false }));
+      return;
+    }
+
+    setExpandedOrders((prev) => ({ ...prev, [orderId]: true }));
+    await fetchOrderDetails(orderId);
+  };
+
+  const handleRepeat = async (order: any) => {
+    const itens = orderItemsById[order.id] ?? (await fetchOrderDetails(order.id));
     const validos = itens.filter((it: any) => it.produtos);
     if (validos.length === 0) {
       toast.error("Nenhum produto disponível para repetir.");
@@ -305,16 +375,6 @@ function OrdersPage() {
                 <Badge variant="secondary">{STATUS_LABEL[o.status] || o.status}</Badge>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                {o.itens_pedido?.map((it: any) => (
-                  <div key={it.id} className="flex justify-between">
-                    <span>
-                      {it.quantidade}x {it.produtos?.nome || "Item"}
-                    </span>
-                    <span className="font-medium">
-                      R$ {Number(it.valor_total).toFixed(2).replace(".", ",")}
-                    </span>
-                  </div>
-                ))}
                 <div className="border-t pt-2 flex justify-between font-bold">
                   <span>Total</span>
                   <span className="text-primary">
@@ -338,7 +398,56 @@ function OrdersPage() {
                     variant="outline"
                     size="sm"
                     className="w-full"
+                    onClick={() => handleToggleDetails(o.id)}
+                    disabled={!!detailsLoadingById[o.id]}
+                  >
+                    {expandedOrders[o.id] ? "Ocultar detalhes" : "Ver detalhes"}
+                  </Button>
+
+                  {expandedOrders[o.id] && (
+                    <div className="rounded-md border p-3 space-y-2">
+                      {detailsLoadingById[o.id] ? (
+                        <p className="text-xs text-muted-foreground">Carregando detalhes...</p>
+                      ) : detailsErrorById[o.id] ? (
+                        <div className="space-y-2">
+                          <p className="text-xs text-destructive break-all">
+                            {detailsErrorById[o.id]}
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => fetchOrderDetails(o.id)}
+                          >
+                            Tentar novamente
+                          </Button>
+                        </div>
+                      ) : orderItemsById[o.id]?.length ? (
+                        <div className="space-y-2">
+                          {orderItemsById[o.id].map((it: any) => (
+                            <div key={it.id} className="flex justify-between">
+                              <span>
+                                {it.quantidade}x {it.produtos?.nome || "Item"}
+                              </span>
+                              <span className="font-medium">
+                                R$ {Number(it.valor_total).toFixed(2).replace(".", ",")}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          Nenhum item encontrado para este pedido.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
                     onClick={() => handleRepeat(o)}
+                    disabled={!!detailsLoadingById[o.id]}
                   >
                     <RotateCcw className="h-4 w-4 mr-2" />
                     Repetir pedido

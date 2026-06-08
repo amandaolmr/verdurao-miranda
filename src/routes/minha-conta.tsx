@@ -52,8 +52,8 @@ const EMPTY_ADDR = {
 function AccountPage() {
   const navigate = useNavigate();
   const { data: bairros = [] } = useBairros();
-  const { user, loading } = useAuth();
-  const authError = false; // useAuth() tem safety timer de 10s — sempre resolve
+  const { user, loading } = useAuth({ redirectToLogin: true });
+  const authError = false; // reservado para falhas explícitas de autenticação
   const [activeSection, setActiveSection] = useState<null | "enderecos">(null);
 
   // Addresses state
