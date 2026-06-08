@@ -214,8 +214,13 @@ function RootComponent() {
           );
         }
       }
-      router.invalidate();
-      queryClient.invalidateQueries();
+      // Invalida apenas queries que dependem de autenticação (pedidos, endereços, carrinho).
+      // NÃO invalida produtos/categorias — são públicos e o skeleton infinito é causado
+      // pela invalidação desnecessária após login.
+      queryClient.invalidateQueries({ queryKey: ["bairros"] });
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+        router.invalidate();
+      }
     });
     return () => subscription.unsubscribe();
   }, [router, queryClient]);
