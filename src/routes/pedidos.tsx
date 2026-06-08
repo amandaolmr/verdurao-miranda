@@ -7,7 +7,15 @@ import { useConfig, type ConfigLoja } from "@/hooks/useConfig";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Package, RotateCcw, RefreshCcw, AlertCircle, MessageCircle, CheckCircle2, X } from "lucide-react";
+import {
+  Package,
+  RotateCcw,
+  RefreshCcw,
+  AlertCircle,
+  MessageCircle,
+  CheckCircle2,
+  X,
+} from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { toast } from "sonner";
 
@@ -282,7 +290,9 @@ function OrdersPage() {
             <Card key={o.id}>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle className="text-base">Pedido #{o.id.slice(0, 8).toUpperCase()}</CardTitle>
+                  <CardTitle className="text-base">
+                    Pedido #{o.id.slice(0, 8).toUpperCase()}
+                  </CardTitle>
                   <p className="text-xs text-muted-foreground">
                     {new Date(o.criado_em).toLocaleString("pt-BR")}
                   </p>
@@ -313,11 +323,7 @@ function OrdersPage() {
                 </div>
                 <div className="pt-2 flex flex-col gap-2">
                   {buildWaUrl(config, o.id) && (
-                    <a
-                      href={buildWaUrl(config, o.id)!}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
+                    <a href={buildWaUrl(config, o.id)!} target="_blank" rel="noopener noreferrer">
                       <Button
                         size="sm"
                         className="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white gap-2"
