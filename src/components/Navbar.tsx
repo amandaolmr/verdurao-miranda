@@ -66,11 +66,6 @@ export function Navbar({ searchValue = "", onSearch }: NavbarProps) {
           >
             <Search className="h-5 w-5" />
           </Button>
-          <Link to="/minha-conta">
-            <Button variant="ghost" size="icon">
-              <User className="h-5 w-5" />
-            </Button>
-          </Link>
           <CartDrawer>
             <Button variant="ghost" size="icon" className="relative">
               <ShoppingCart className="h-5 w-5" />
@@ -81,6 +76,11 @@ export function Navbar({ searchValue = "", onSearch }: NavbarProps) {
               )}
             </Button>
           </CartDrawer>
+          <Link to="/minha-conta">
+            <Button variant="ghost" size="icon">
+              <User className="h-5 w-5" />
+            </Button>
+          </Link>
         </div>
       </div>
 
