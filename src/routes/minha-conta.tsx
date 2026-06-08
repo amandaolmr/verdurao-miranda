@@ -52,9 +52,15 @@ const EMPTY_ADDR = {
 function AccountPage() {
   const navigate = useNavigate();
   const { data: bairros = [] } = useBairros();
-  const { user, loading } = useAuth({ redirectToLogin: true });
-  const authError = false; // reservado para falhas explícitas de autenticação
+  const { user, session, loading, error } = useAuth({ redirectToLogin: true });
+  const authError = !!error;
   const [activeSection, setActiveSection] = useState<null | "enderecos">(null);
+
+  useEffect(() => {
+    console.log("user", user);
+    console.log("session", session);
+    console.log("loading", loading);
+  }, [user, session, loading]);
 
   // Addresses state
   const [enderecos, setEnderecos] = useState<any[]>([]);
@@ -180,11 +186,11 @@ function AccountPage() {
         <div className="container mx-auto px-4 py-12 max-w-md text-center space-y-4">
           <h1 className="text-2xl font-bold">Não foi possível carregar</h1>
           <p className="text-muted-foreground">
-            Houve um problema ao verificar sua sessão. Por favor, entre novamente.
+            {error ?? "Houve um problema ao verificar sua sessão. Por favor, tente novamente."}
           </p>
-          <Link to="/login">
-            <Button className="w-full">Entrar novamente</Button>
-          </Link>
+          <Button className="w-full" onClick={() => window.location.reload()}>
+            Tentar novamente
+          </Button>
         </div>
       </div>
     );
