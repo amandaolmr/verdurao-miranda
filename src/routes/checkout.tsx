@@ -493,7 +493,9 @@ function CheckoutPage() {
                 <Button
                   className="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white"
                   size="lg"
-                  onClick={() => window.open(pedidoSucesso!.waUrl!, "_blank", "noopener,noreferrer")}
+                  onClick={() =>
+                    window.open(pedidoSucesso!.waUrl!, "_blank", "noopener,noreferrer")
+                  }
                 >
                   <MessageCircle className="h-5 w-5 mr-2" />
                   Avisar a loja pelo WhatsApp
