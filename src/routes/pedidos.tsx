@@ -23,7 +23,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function OrdersPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, session, loading: authLoading } = useAuth();
   const [orders, setOrders] = useState<any[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -49,44 +49,68 @@ function OrdersPage() {
     setOrdersLoading(true);
     setLoadError(false);
     setErrorMessage(null);
-    console.log("[pedidos] LOADING START");
+
+    console.log("[pedidos] fetchOrders START uid=", uid);
+    console.log("[pedidos] auth.user=", user);
+    console.log("[pedidos] auth.session=", session);
+
+    // Timeout de 10s — evita travar para sempre no Safari iOS
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      console.warn("[pedidos] Timeout 10s atingido — abortando query");
+    }, 10_000);
 
     try {
-      console.log("[pedidos] PEDIDOS QUERY START");
+      console.log("[pedidos] Supabase query START");
       const { data: pedidos, error } = await supabase
         .from("pedidos")
         .select(
           "*, itens_pedido(*, produtos(id, nome, preco, unidade_venda, imagem_url, permite_fracionamento, quantidade_minima))",
         )
         .eq("cliente_id", uid)
-        .order("criado_em", { ascending: false });
-      console.log("[pedidos] PEDIDOS QUERY END");
-      console.log("PEDIDOS_DATA", pedidos);
-      console.error("PEDIDOS_ERROR", error);
+        .order("criado_em", { ascending: false })
+        .abortSignal(controller.signal);
+
+      clearTimeout(timeoutId);
+      console.log("[pedidos] Supabase query END");
+      console.log("[pedidos] pedidos carregados=", pedidos);
+      console.log("[pedidos] erro da query=", error);
 
       if (error) throw error;
 
       setOrders(pedidos || []);
     } catch (err: any) {
+      clearTimeout(timeoutId);
+      const isTimeout = controller.signal.aborted || err?.name === "AbortError";
       console.error("[pedidos] Erro inesperado:", err);
       setLoadError(true);
-      setErrorMessage(err?.message ?? String(err) ?? "Erro desconhecido");
+      setErrorMessage(
+        isTimeout
+          ? "A consulta demorou mais de 10s. Verifique sua conexão e tente novamente."
+          : (err?.message ?? String(err) ?? "Erro desconhecido"),
+      );
     } finally {
-      console.log("[pedidos] LOADING END");
+      console.log("[pedidos] LOADING END ordersLoading → false");
       setOrdersLoading(false);
       fetchingRef.current = false;
     }
   }
 
-  // Dispara a query assim que o auth resolver (authLoading false → user disponível)
+  // Dispara a query assim que auth resolver e user estiver disponível.
+  // Depende de user?.id para reagir também quando a sessão chega depois do
+  // localStorage (ex: TOKEN_REFRESHED no Safari iOS após initializePromise).
   useEffect(() => {
     if (authLoading) return;
-    if (!user) return; // mostrará tela de login
-    console.log("SESSION", user);
-    console.log("USER_ID", user.id);
+    if (!user) {
+      console.log("[pedidos] auth resolvido — usuário não autenticado");
+      return; // mostrará tela de login
+    }
+    console.log("[pedidos] auth resolvido — user.id=", user.id);
+    console.log("[pedidos] session=", session);
     fetchOrders(user.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading]);
+  }, [authLoading, user?.id]);
 
   // Recarrega quando usuário volta ao app (ex: retornando do WhatsApp)
   useEffect(() => {
