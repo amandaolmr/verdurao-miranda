@@ -280,22 +280,12 @@ function OrdersPage() {
       const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string) ?? "";
       const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string) ?? "";
 
-      console.log("[REST_TEST] antes do getSession");
-      const {
-        data: { session: freshSession },
-      } = await supabase.auth.getSession();
-      console.log(
-        "[REST_TEST] getSession retornou — token=",
-        freshSession?.access_token ? "ok" : "null",
-      );
-
-      const token = freshSession?.access_token ?? SUPABASE_KEY;
-
-      console.log("[REST_TEST] inicio — orderId=", orderId);
-      console.log("[REST_TEST] token type=", session?.access_token ? "user_token" : "anon_key");
+      // Token lido diretamente do hook — sem getSession() que trava após WhatsApp
+      const token = session?.access_token ?? SUPABASE_KEY;
+      console.log("[REST_TEST] token obtido do hook");
 
       const url = `${SUPABASE_URL}/rest/v1/itens_pedido?select=*&pedido_id=eq.${orderId}`;
-      console.log("[REST_TEST] antes do fetch — url length=", url.length);
+      console.log("[REST_TEST] antes do fetch");
 
       const response = await fetch(url, {
         headers: {
