@@ -76,119 +76,90 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setInitialized(true);
     }
     setLoading(false);
-    console.log("[Auth] INITIALIZED");
+    console.log("[Auth] auth ready");
   }
 
   useEffect(() => {
     mountedRef.current = true;
+    console.log("[Auth] app mounted");
 
-    // Safety timer: força loading=false se getSession + onAuthStateChange não
-    // responderem em 8s (ex: Safari iOS com initializePromise travada).
+    // Safety timer: INITIAL_SESSION deve disparar em < 100ms (leitura de
+    // localStorage). 3s cobre casos extremos — SSR, localStorage lento,
+    // estado quebrado. NÃO chama getSession() para não travar na rede.
     const safetyTimer = setTimeout(() => {
-      if (!mountedRef.current) return;
-      console.warn("[Auth] Safety timer — forcing initialized after 8s");
+      if (initializedRef.current || !mountedRef.current) return;
+      console.warn("[Auth] Safety timer — forcing initialized after 3s");
       markInitialized();
-    }, 8_000);
+    }, 3_000);
 
-    async function bootstrap() {
-      console.log("[Auth] bootstrap START");
-      try {
-        const { data, error: sessionError } = await supabase.auth.getSession();
-        if (!mountedRef.current) return;
-
-        if (sessionError) {
-          console.error("[Auth] getSession error:", sessionError);
-          setError(sessionError.message);
-          setSession(null);
-        } else {
-          const s = data.session;
-
-          // Verifica expiração da sessão de admin (>12h)
-          if (s && isAdminPath() && isAdminSessionExpired()) {
-            console.warn("[Auth] Admin session expired (>12h) — signing out");
-            await supabase.auth.signOut();
-            localStorage.removeItem(ADMIN_LOGIN_KEY);
-            setSession(null);
-            setError(null);
-          } else {
-            console.log("[Auth] session=", s?.user?.id ?? null);
-            setSession(s);
-            setError(null);
-          }
-        }
-      } catch (err: any) {
-        if (!mountedRef.current) return;
-        console.error("[Auth] bootstrap error:", err);
-        setError(err?.message ?? "Falha ao consultar sessão.");
-        setSession(null);
-      } finally {
-        clearTimeout(safetyTimer);
-        if (mountedRef.current) markInitialized();
-      }
-    }
-
-    // Revalida sessão ao retornar via bfcache (Safari iOS / volta do WhatsApp)
-    async function handlePageShow(e: PageTransitionEvent) {
-      if (!e.persisted) return;
-      console.log("[Auth] pageshow — revalidating session");
-      try {
-        const { data, error: sessionError } = await supabase.auth.getSession();
-        if (!mountedRef.current) return;
-
-        if (sessionError) {
-          setError(sessionError.message);
-          setSession(null);
-        } else {
-          const s = data.session;
-          if (s && isAdminPath() && isAdminSessionExpired()) {
-            await supabase.auth.signOut();
-            localStorage.removeItem(ADMIN_LOGIN_KEY);
-            setSession(null);
-          } else {
-            setSession(s);
-            setError(null);
-          }
-        }
-      } catch {
-        // Silencioso — deixa a sessão atual intacta em caso de falha de rede
-      }
-    }
-
-    void bootstrap();
-    window.addEventListener("pageshow", handlePageShow);
-
+    // ─────────────────────────────────────────────────────────────────────────
+    // PADRÃO CORRETO: onAuthStateChange registrado PRIMEIRO.
+    //
+    // INITIAL_SESSION dispara imediatamente com a sessão do localStorage —
+    // SEM chamada de rede. Isso garante initialized=true em < 100ms.
+    //
+    // Quando o access_token está expirado, o Supabase o renova em background
+    // via autoRefreshToken e dispara TOKEN_REFRESHED — a sessão é atualizada
+    // sem bloquear o carregamento inicial.
+    //
+    // POR QUÊ REMOVEMOS getSession() DO BOOTSTRAP:
+    // getSession() aguarda initializePromise internamente. Se o token está
+    // expirado, faz chamada de rede ao /auth/v1/token. No Supabase free tier,
+    // essa chamada pode levar 8–30s (cold start). O safety timer disparava
+    // com session=null, o app redirecionava para /login, e só depois a sessão
+    // válida chegava — tarde demais.
+    // ─────────────────────────────────────────────────────────────────────────
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!mountedRef.current) return;
       console.log("[Auth] event=", event, "user=", newSession?.user?.id ?? null);
 
-      if (event === "SIGNED_OUT") {
-        setSession(null);
+      if (event === "INITIAL_SESSION") {
+        // Sessão lida do localStorage — sem rede, instantâneo
+        const s = newSession;
+        if (s && isAdminPath() && isAdminSessionExpired()) {
+          console.warn("[Auth] Admin session expired (>12h) — signing out");
+          void supabase.auth.signOut();
+          localStorage.removeItem(ADMIN_LOGIN_KEY);
+          setSession(null);
+        } else {
+          console.log("[Auth] session loaded — user=", s?.user?.id ?? "null");
+          setSession(s);
+          setError(null);
+        }
+        clearTimeout(safetyTimer);
+        markInitialized();
+      } else if (event === "TOKEN_REFRESHED") {
+        // Token renovado em background pelo autoRefreshToken — atualiza sessão
+        console.log("[Auth] token refreshed — user=", newSession?.user?.id ?? null);
+        setSession(newSession);
         setError(null);
-        localStorage.removeItem(ADMIN_LOGIN_KEY);
-      } else if (event === "SIGNED_IN" && newSession) {
-        // Registra timestamp do login de admin para controle de TTL (12h)
-        if (isAdminPath() && !localStorage.getItem(ADMIN_LOGIN_KEY)) {
+      } else if (event === "SIGNED_IN") {
+        // Login bem-sucedido (formulário ou OAuth)
+        console.log("[Auth] user loaded — user=", newSession?.user?.id ?? null);
+        if (newSession && isAdminPath() && !localStorage.getItem(ADMIN_LOGIN_KEY)) {
           localStorage.setItem(ADMIN_LOGIN_KEY, String(Date.now()));
         }
         setSession(newSession);
         setError(null);
+        if (!initializedRef.current) markInitialized();
+      } else if (event === "SIGNED_OUT") {
+        console.log("[Auth] signed out");
+        setSession(null);
+        setError(null);
+        localStorage.removeItem(ADMIN_LOGIN_KEY);
+        if (!initializedRef.current) markInitialized();
       } else if (newSession) {
         setSession(newSession);
         setError(null);
       }
-
-      // Garante que initialized seja marcado mesmo se onAuthStateChange chegar
-      // antes do bootstrap em edge cases.
-      if (!initializedRef.current) markInitialized();
     });
 
     return () => {
       mountedRef.current = false;
       clearTimeout(safetyTimer);
       subscription.unsubscribe();
-      window.removeEventListener("pageshow", handlePageShow);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

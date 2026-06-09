@@ -19,16 +19,54 @@ function createSupabaseClient() {
     throw new Error(message);
   }
 
-  // ─── Limpeza preventiva de sessão stale ──────────────────────────────────
-  // MOTIVO: toda query Supabase aguarda `initializePromise` internamente.
-  // Se o access_token está expirado, o Supabase tenta renovar via refresh_token.
-  // No Safari/iOS, essa chamada de rede pode travar INDEFINIDAMENTE quando:
-  //   • a rede está indisponível (app em segundo plano, sem sinal)
-  //   • o refresh_token foi revogado pelo Google
-  // Isso bloqueia TODAS as queries — produtos, categorias, pedidos, etc.
+  // ─── Versionamento e limpeza de cache ────────────────────────────────────
+  // Quando APP_CACHE_VERSION mudar, dados de cache de versões antigas são
+  // removidos automaticamente. O token de sessão Supabase é preservado —
+  // usuário não perde o login num update normal de versão.
   //
-  // Solução: remover a sessão stale ANTES de criar o cliente, forçando start
-  // sem sessão. O usuário precisará fazer login novamente, mas o app não trava.
+  // Para forçar re-login em todos os usuários (ex: mudança de schema de auth),
+  // incremente a versão E inclua a chave sb-* na lista de limpeza.
+  const APP_CACHE_VERSION = "v1";
+  const APP_CACHE_VERSION_KEY = "app_cache_version";
+
+  if (typeof window !== "undefined") {
+    try {
+      const storedVersion = localStorage.getItem(APP_CACHE_VERSION_KEY);
+      if (storedVersion !== APP_CACHE_VERSION) {
+        if (storedVersion) {
+          console.log(
+            `[Cache] Versão alterada (${storedVersion} → ${APP_CACHE_VERSION}) — limpando cache antigo`,
+          );
+          // Remove apenas chaves de cache customizadas (não o token Supabase)
+          const appCacheKeys: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (
+              key &&
+              (key.startsWith("app_") || key.startsWith("query_") || key.startsWith("cache_"))
+            ) {
+              appCacheKeys.push(key);
+            }
+          }
+          appCacheKeys.forEach((k) => {
+            localStorage.removeItem(k);
+            console.log("[Cache] cache cleared:", k);
+          });
+        }
+        localStorage.setItem(APP_CACHE_VERSION_KEY, APP_CACHE_VERSION);
+        console.log("[Cache] cache loaded — version:", APP_CACHE_VERSION);
+      }
+    } catch {
+      /* noop — localStorage pode estar bloqueado em modo privado */
+    }
+  }
+
+  // ─── Limpeza de sessão Supabase corrompida ────────────────────────────────
+  // MOTIVO: se o token armazenado estiver corrompido (JSON inválido, campos
+  // ausentes), o Supabase fica em loop tentando renovar indefinidamente.
+  // Detectamos e removemos antes de criar o cliente para evitar esse bloqueio.
+  // O INITIAL_SESSION do onAuthStateChange resolverá como null — o usuário
+  // verá a tela de login em vez de um spinner infinito.
   if (typeof window !== "undefined") {
     const projectRef = SUPABASE_URL.match(/https?:\/\/([^.]+)\./)?.[1];
     if (projectRef) {
@@ -37,23 +75,24 @@ function createSupabaseClient() {
         const raw = localStorage.getItem(storageKey);
         if (raw) {
           const parsed = JSON.parse(raw);
-          const refreshToken: string | undefined = parsed?.refresh_token;
+          // Supabase v2 armazena o token diretamente no nível raiz
+          const refreshToken: string | undefined =
+            parsed?.refresh_token ?? parsed?.currentSession?.refresh_token;
 
           if (!refreshToken) {
-            // Sem refresh_token: impossível renovar a sessão → remove.
-            // Não removemos com base em expires_at porque o refresh_token
-            // ainda pode ser válido por dias/semanas — o Supabase renova
-            // automaticamente via autoRefreshToken. Remover aqui forçaria
-            // re-login a cada hora (duração padrão do access_token).
+            // Sem refresh_token: impossível renovar → remove para evitar bloqueio
             localStorage.removeItem(storageKey);
-            console.warn("[Supabase] Sessão sem refresh_token removida (evita bloqueio).");
+            console.warn("[Cache] cache invalid — sessão sem refresh_token removida");
+          } else {
+            console.log("[Cache] cache loaded — sessão Supabase válida");
           }
         }
       } catch {
-        // Token corrompido (JSON inválido) — remover
+        // Token com JSON inválido — remover
         try {
           localStorage.removeItem(`sb-${projectRef}-auth-token`);
-          console.warn("[Supabase] Token corrompido removido.");
+          console.warn("[Cache] cache invalid — token corrompido removido");
+          console.log("[Cache] cache rebuilt — Supabase iniciará sem sessão");
         } catch {
           /* noop */
         }

@@ -74,8 +74,7 @@ function OrdersPage() {
   // Usa `initialized` (não `authLoading`) para evitar loop após retorno do bfcache.
   const loading = !initialized || ordersLoading;
 
-  // Ref para o user.id atual — usado no visibilitychange sem precisar
-  // re-registrar o listener quando o user muda.
+  // Ref para o user.id atual
   const userIdRef = useRef<string | null>(null);
   userIdRef.current = user?.id ?? null;
 
@@ -89,31 +88,26 @@ function OrdersPage() {
 
   /**
    * Aborta todos os requests em andamento e libera o mutex.
-   *
-   * Chamado:
-   *  - no cleanup de desmonte (navegação entre rotas)
-   *  - em visibilitychange=hidden (usuário foi para WhatsApp)
-   *  - em pageshow(persisted) bfcache restore (safety)
-   *
-   * Por quê abortar no HIDDEN e não no VISIBLE?
-   * O Safari iOS suspende timers quando a página vai para bfcache.
-   * Ao retornar, timers "atrasados" disparam imediatamente.
-   * Se o setTimeout de 20s estava a 15s quando a página congelou,
-   * ao retornar ele dispara em <1s — causando o erro "demorou mais de 20s".
-   * Abortando no HIDDEN, o timer é cancelado via abort-event-listener
-   * ANTES do bfcache congelar a página. Ao retornar, nenhum timer pendente.
+   * Chamado apenas no cleanup de desmonte (navegação entre rotas).
+   * NÃO é chamado por eventos de ciclo de vida do browser (visibilitychange,
+   * pageshow, focus) — o usuário pode abrir WhatsApp ou trocar de aba
+   * sem interromper as queries em andamento.
    */
   function abortInFlight() {
     console.log(
-      "[pedidos] abortInFlight — abortando",
+      "[pedidos] REQUEST ABORTED — abortando",
       activeControllersRef.current.size,
-      "request(s)",
+      "request(s) (desmonte)",
     );
     fetchingRef.current = false;
     for (const ctrl of activeControllersRef.current) {
       ctrl.abort();
     }
     activeControllersRef.current.clear();
+    setExpandedOrders({});
+    setOrderItemsById({});
+    setDetailsLoadingById({});
+    setDetailsErrorById({});
   }
 
   // Aborta TODOS os requests em andamento ao navegar para fora desta página.
@@ -134,85 +128,118 @@ function OrdersPage() {
     setErrorMessage(null);
 
     const t0 = performance.now();
-    console.log("[Pedidos] Consulta iniciada — uid=", uid);
 
-    // Controlador para cancelamento por desmonte do componente.
-    // NÃO passamos esse sinal direto ao Supabase para evitar cancelar streams
-    // HTTP/2 compartilhados que afetem requests de outras instâncias.
-    const controller = new AbortController();
-    activeControllersRef.current.add(controller);
+    // Retry automático: 3 tentativas, 15s por tentativa.
+    // Delays entre tentativas: 2s (após a 1ª) e 5s (após a 2ª).
+    // Cobre Supabase free tier cold start (~3-10s) e falhas de rede transitórias.
+    // Só falha definitivamente após esgotar todas as tentativas.
+    const MAX_ATTEMPTS = 3;
+    const RETRY_DELAYS_MS = [2_000, 5_000];
+    const ATTEMPT_TIMEOUT_MS = 15_000;
 
-    let isTimedOut = false;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      // Desmonte entre tentativas — para sem atualizar estado
+      if (!fetchingRef.current) return;
 
-    // Race entre a query e um timeout de 20s (ou desmonte imediato)
-    const raceTimeout = new Promise<never>((_, reject) => {
-      const timer = setTimeout(() => {
-        isTimedOut = true;
-        controller.abort();
-        console.warn("[pedidos] Timeout 20s atingido — abortando query");
-        reject(new Error("TIMEOUT"));
-      }, 20_000);
-
-      // Desmonte imediato cancela o race antes do timer
-      controller.signal.addEventListener(
-        "abort",
-        () => {
-          clearTimeout(timer);
-          if (!isTimedOut) reject(new DOMException("unmounted", "AbortError"));
-        },
-        { once: true },
-      );
-    });
-
-    try {
-      const { data: pedidos, error } = (await Promise.race([
-        supabase
-          .from("pedidos")
-          .select(`id, criado_em, status, forma_pagamento, valor_total`)
-          .eq("cliente_id", uid)
-          .order("criado_em", { ascending: false }),
-        raceTimeout,
-      ])) as { data: any; error: any };
-
-      const elapsed = Math.round(performance.now() - t0);
-      if (elapsed > 2000) {
-        console.warn(`[Pedidos] ⚠️ Query lenta: ${elapsed}ms (esperado < 2000ms)`);
-      } else {
-        console.log(`[Pedidos] Query executada em ${elapsed}ms`);
+      if (attempt > 1) {
+        const delay = RETRY_DELAYS_MS[attempt - 2];
+        console.log(
+          `[Pedidos] Tentativa ${attempt}/${MAX_ATTEMPTS} — aguardando ${delay / 1000}s...`,
+        );
+        await new Promise<void>((r) => setTimeout(r, delay));
+        if (!fetchingRef.current) return; // desmontado durante o delay
       }
-      console.log(`[Pedidos] ${pedidos?.length ?? 0} pedido(s) encontrado(s)`);
 
-      if (error) throw error;
+      const controller = new AbortController();
+      activeControllersRef.current.add(controller);
+      let isTimedOut = false;
 
-      setOrders(pedidos || []);
-      setExpandedOrders({});
-      setOrderItemsById({});
-      setDetailsLoadingById({});
-      setDetailsErrorById({});
-    } catch (err: any) {
-      // Se o controller já foi removido do Set pelo cleanup de desmonte,
-      // o componente foi desmontado — não atualizar estado da nova instância.
-      if (!activeControllersRef.current.has(controller)) return;
+      const raceTimeout = new Promise<never>((_, reject) => {
+        const timer = setTimeout(() => {
+          isTimedOut = true;
+          controller.abort();
+          console.warn(
+            `[Pedidos] Tentativa ${attempt}/${MAX_ATTEMPTS} timeout (${ATTEMPT_TIMEOUT_MS / 1000}s)`,
+          );
+          reject(new Error("TIMEOUT"));
+        }, ATTEMPT_TIMEOUT_MS);
 
-      const isAbortOrTimeout =
-        isTimedOut || err?.name === "AbortError" || err?.message === "TIMEOUT";
-      console.error("[pedidos] Erro inesperado:", err);
-      setLoadError(true);
-      setErrorMessage(
-        isAbortOrTimeout
-          ? "A consulta demorou mais de 20s. Verifique sua conexão e tente novamente."
-          : (err?.message ?? String(err) ?? "Erro desconhecido"),
-      );
-    } finally {
-      // Só atualiza o estado de loading se o controller ainda está no Set
-      // (ou seja, não foi desmontado pelo cleanup)
-      const wasActive = activeControllersRef.current.has(controller);
-      activeControllersRef.current.delete(controller);
-      if (wasActive) {
-        console.log("[pedidos] LOADING END ordersLoading → false");
+        controller.signal.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timer);
+            if (!isTimedOut) reject(new DOMException("unmounted", "AbortError"));
+          },
+          { once: true },
+        );
+      });
+
+      try {
+        console.log(`[Pedidos] REQUEST START — tentativa ${attempt}/${MAX_ATTEMPTS} uid=`, uid);
+
+        const { data: pedidos, error } = (await Promise.race([
+          supabase
+            .from("pedidos")
+            .select(`id, criado_em, status, forma_pagamento, valor_total`)
+            .eq("cliente_id", uid)
+            .order("criado_em", { ascending: false }),
+          raceTimeout,
+        ])) as { data: any; error: any };
+
+        if (error) throw error;
+
+        const elapsed = Math.round(performance.now() - t0);
+        console.log(
+          elapsed > 2000
+            ? `[Pedidos] REQUEST SUCCESS (lento) — ${elapsed}ms tentativa ${attempt}`
+            : `[Pedidos] REQUEST SUCCESS — ${elapsed}ms tentativa ${attempt}`,
+        );
+        console.log(`[Pedidos] ${pedidos?.length ?? 0} pedido(s) encontrado(s)`);
+
+        activeControllersRef.current.delete(controller);
+        setOrders(pedidos || []);
+        setExpandedOrders({});
+        setOrderItemsById({});
+        setDetailsLoadingById({});
+        setDetailsErrorById({});
         setOrdersLoading(false);
+        fetchingRef.current = false;
+        return; // ✅ sucesso — sai do loop
+      } catch (err: any) {
+        activeControllersRef.current.delete(controller);
+
+        // Desmonte: AbortError gerado pelo abortInFlight (não por timeout)
+        if (err?.name === "AbortError" && !isTimedOut) {
+          console.log("[Pedidos] REQUEST ABORTED — componente desmontado");
+          return;
+        }
+        if (!fetchingRef.current) return; // abortInFlight chamado durante await
+
+        if (attempt < MAX_ATTEMPTS) {
+          const isTimeout = isTimedOut || err?.message === "TIMEOUT";
+          console.warn(
+            `[Pedidos] Tentativa ${attempt}/${MAX_ATTEMPTS} falhou` +
+              (isTimeout ? " (timeout)" : ` — ${err?.message ?? err}`) +
+              " — tentando novamente...",
+          );
+          continue; // próxima iteração
+        }
+
+        // Todas as tentativas esgotadas
+        const elapsed = Math.round(performance.now() - t0);
+        const isTimeout = isTimedOut || err?.message === "TIMEOUT";
+        console.error(
+          `[Pedidos] REQUEST ERROR — ${MAX_ATTEMPTS} tentativas falharam em ${elapsed}ms`,
+        );
+        setLoadError(true);
+        setErrorMessage(
+          isTimeout
+            ? `Não foi possível carregar após ${MAX_ATTEMPTS} tentativas. Verifique sua conexão.`
+            : (err?.message ?? String(err) ?? "Erro desconhecido"),
+        );
+        setOrdersLoading(false);
+        fetchingRef.current = false;
       }
-      fetchingRef.current = false;
     }
   }
 
@@ -232,9 +259,9 @@ function OrdersPage() {
       const timer = setTimeout(() => {
         isTimedOut = true;
         controller.abort();
-        console.warn("[pedidos] Timeout 20s atingido — abortando detalhes do pedido");
+        console.warn("[Pedidos] Timeout 30s (detalhes) — abortando");
         reject(new Error("TIMEOUT"));
-      }, 20_000);
+      }, 30_000);
 
       controller.signal.addEventListener(
         "abort",
@@ -247,7 +274,7 @@ function OrdersPage() {
     });
 
     const t1 = performance.now();
-    console.log("[Pedidos] Sessão carregada — buscando detalhes", orderId);
+    console.log("[Pedidos] REQUEST START (detalhes) — pedido", orderId);
 
     try {
       const { data, error } = (await Promise.race([
@@ -264,9 +291,9 @@ function OrdersPage() {
 
       const elapsed1 = Math.round(performance.now() - t1);
       if (elapsed1 > 2000) {
-        console.warn(`[Pedidos] ⚠️ Query de detalhes lenta: ${elapsed1}ms`);
+        console.warn(`[Pedidos] REQUEST SUCCESS (detalhes lento) — ${elapsed1}ms`);
       } else {
-        console.log(`[Pedidos] Detalhes carregados em ${elapsed1}ms`);
+        console.log(`[Pedidos] REQUEST SUCCESS (detalhes) — ${elapsed1}ms`);
       }
 
       const itens = data || [];
@@ -274,7 +301,10 @@ function OrdersPage() {
       return itens;
     } catch (err: any) {
       // Desmonte do componente — não atualizar estado
-      if (!activeControllersRef.current.has(controller)) return [];
+      if (!activeControllersRef.current.has(controller)) {
+        console.log("[Pedidos] REQUEST ABORTED (detalhes) — componente desmontado");
+        return [];
+      }
 
       const isAbortOrTimeout =
         isTimedOut || err?.name === "AbortError" || err?.message === "TIMEOUT";
@@ -282,7 +312,7 @@ function OrdersPage() {
         ? "A consulta de detalhes demorou mais de 20s. Tente novamente."
         : (err?.message ?? String(err) ?? "Erro desconhecido");
 
-      console.error("[pedidos] Erro ao carregar detalhes do pedido:", err);
+      console.error("[Pedidos] REQUEST ERROR (detalhes):", err?.message ?? err);
       setDetailsErrorById((prev) => ({ ...prev, [orderId]: message }));
       return [];
     } finally {
@@ -294,90 +324,30 @@ function OrdersPage() {
     }
   }
 
-  // Dispara a query apenas após auth estar completamente inicializado.
-  // `initialized` é estável (nunca volta a false) — evita loops infinitos.
-  // Depende de user?.id para reagir também quando a sessão chega depois do
-  // localStorage (ex: TOKEN_REFRESHED no Safari iOS após initializePromise).
+  // Busca pedidos apenas na montagem e quando user.id muda (ex: login).
+  // NÃO refaz fetch por visibilitychange, focus, pageshow ou qualquer
+  // evento de ciclo de vida do browser. O usuário pode abrir WhatsApp,
+  // trocar de aba ou bloquear o celular sem perder o estado da página.
+  // Atualizações em tempo real são tratadas pelo canal Realtime abaixo.
   useEffect(() => {
     if (!initialized) return;
     if (!user) {
-      // Auth resolvido sem usuário: para o loading para mostrar o card de login.
-      // O useAuth com redirectToLogin=true vai redirecionar em seguida.
-      console.log("[pedidos] auth resolvido — usuário não autenticado");
+      console.log("[Pedidos] usuário não autenticado");
       setOrdersLoading(false);
       return;
     }
-    console.log("[pedidos] auth resolvido — user.id=", user.id);
-    console.log("[pedidos] session=", session);
     fetchOrders(user.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialized, user?.id]);
 
-  // Recarregamento ao retornar do WhatsApp / mudar de aba / bfcache Safari iOS
-  useEffect(() => {
-    function handleVisibility() {
-      const uid = userIdRef.current;
-      console.log(
-        "[pedidos] visibilitychange —",
-        document.visibilityState,
-        "| uid=",
-        uid ?? "null",
-      );
-
-      if (document.visibilityState === "hidden") {
-        // Página vai para segundo plano (WhatsApp, bfcache, etc.)
-        // Aborta AGORA para que o timer da raceTimeout seja cancelado
-        // ANTES do Safari congelar a página. Sem isso, o timer fica
-        // "pausado" e dispara imediatamente ao retornar, causando o
-        // erro falso "demorou mais de 20s".
-        abortInFlight();
-        setOrdersLoading(false); // limpa spinner residual
-      } else if (document.visibilityState === "visible" && uid) {
-        // Retornou — busca pedidos frescos
-        console.log("[pedidos] visibilitychange visible — recarregando pedidos");
-        fetchOrders(uid);
-      }
-    }
-
-    // bfcache: Safari iOS restaura a página sem remontagem.
-    // pageshow(persisted=true) pode disparar após ou junto com visibilitychange.
-    // abortInFlight() aqui é um safety net caso a página tenha congelado com
-    // controller ativo (ex.: bfcache sem visibilitychange=hidden antes).
-    function handlePageShow(e: PageTransitionEvent) {
-      const uid = userIdRef.current;
-      console.log(
-        "[pedidos] pageshow — persisted=",
-        e.persisted,
-        "| uid=",
-        uid ?? "null",
-        "| fetchingRef=",
-        fetchingRef.current,
-      );
-
-      if (e.persisted && uid) {
-        // Garante que não há zombie controllers ou mutex bloqueado
-        abortInFlight();
-        fetchOrders(uid);
-      }
-    }
-
-    function handleFocus() {
-      // Fallback para browsers sem visibilitychange confiável
-      const uid = userIdRef.current;
-      console.log("[pedidos] window.focus — uid=", uid ?? "null");
-    }
-
-    document.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("pageshow", handlePageShow);
-    window.addEventListener("focus", handleFocus);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("pageshow", handlePageShow);
-      window.removeEventListener("focus", handleFocus);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  /**
+   * Abre o WhatsApp em nova aba/app sem sair da página atual.
+   * Não existe mais nenhum listener de visibilitychange, portanto
+   * abrir o WhatsApp não causa nenhum abort nem refetch.
+   */
+  function openWhatsApp(url: string) {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
 
   // Auto-dismiss do banner de sucesso após 5s
   useEffect(() => {
@@ -547,9 +517,7 @@ function OrdersPage() {
                     <Button
                       size="sm"
                       className="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white gap-2"
-                      onClick={() =>
-                        window.open(buildWaUrl(config, o.id)!, "_blank", "noopener,noreferrer")
-                      }
+                      onClick={() => openWhatsApp(buildWaUrl(config, o.id)!)}
                     >
                       <MessageCircle className="h-4 w-4" />
                       Falar com a Loja
