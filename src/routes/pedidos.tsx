@@ -155,6 +155,7 @@ function OrdersPage() {
       const controller = new AbortController();
       activeControllersRef.current.add(controller);
       let isTimedOut = false;
+      let cancelRaceTimeout: () => void = () => {};
 
       const raceTimeout = new Promise<never>((_, reject) => {
         const timer = setTimeout(() => {
@@ -165,6 +166,12 @@ function OrdersPage() {
           );
           reject(new Error("TIMEOUT"));
         }, ATTEMPT_TIMEOUT_MS);
+
+        console.log("[PEDIDOS] timeout criado", timer);
+        cancelRaceTimeout = () => {
+          console.log("[PEDIDOS] timeout cancelado", timer);
+          clearTimeout(timer);
+        };
 
         controller.signal.addEventListener(
           "abort",
@@ -190,6 +197,7 @@ function OrdersPage() {
 
         if (error) throw error;
 
+        cancelRaceTimeout(); // evita REQUEST_TIMEOUT disparar após sucesso
         const elapsed = Math.round(performance.now() - t0);
         console.log(
           elapsed > 2000
@@ -208,6 +216,7 @@ function OrdersPage() {
         fetchingRef.current = false;
         return; // ✅ sucesso — sai do loop
       } catch (err: any) {
+        cancelRaceTimeout(); // cancela o timer em qualquer falha
         activeControllersRef.current.delete(controller);
 
         // Desmonte: AbortError gerado pelo abortInFlight (não por timeout)

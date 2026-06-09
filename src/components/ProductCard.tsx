@@ -166,8 +166,8 @@ export function ProductCard({ product }: ProductCardProps) {
 
   return (
     <>
-      <Card className="overflow-hidden border-none bg-card shadow-sm transition-all hover:shadow-md group">
-        <div className="aspect-square w-full overflow-hidden bg-muted/30">
+      <Card className="overflow-hidden border-none bg-card shadow-sm transition-all hover:shadow-md group flex flex-col h-full">
+        <div className="aspect-square w-full overflow-hidden bg-muted/30 shrink-0">
           <img
             src={product.imagem_url || DEFAULT_IMAGE}
             alt={product.nome}
@@ -175,28 +175,23 @@ export function ProductCard({ product }: ProductCardProps) {
             loading="lazy"
           />
         </div>
-        <CardContent className="p-2 md:p-3">
-          <div className="flex flex-col gap-0.5 md:gap-1">
-            <span className="text-[9px] md:text-[10px] font-normal text-muted-foreground uppercase tracking-wide">
-              {product.categorias?.nome || "Hortifruti"}
-            </span>
-            <h3 className="line-clamp-2 text-[13px] md:text-sm font-semibold leading-tight">
-              {product.nome}
-            </h3>
-            <span className="text-sm md:text-lg font-black text-primary mt-0.5 md:mt-1">
+        <CardContent className="flex flex-col flex-1 p-2 md:p-3">
+          <span className="h-[14px] leading-[14px] truncate text-[9px] md:text-[10px] font-normal text-muted-foreground uppercase tracking-wide">
+            {product.categorias?.nome || "Hortifruti"}
+          </span>
+          <h3 className="mt-1 line-clamp-2 min-h-[2.05rem] md:min-h-[2.2rem] text-[13px] md:text-sm font-semibold leading-tight">
+            {product.nome}
+          </h3>
+          <div className="mt-auto pt-1">
+            <span className="text-sm md:text-lg font-black text-primary">
               R$ {product.preco.toFixed(2).replace(".", ",")}
               <span className="text-[9px] md:text-xs font-normal text-muted-foreground ml-0.5">
                 / {formatUnidade(product.unidade_venda)}
               </span>
             </span>
-            {product.descricao && (
-              <p className="hidden md:line-clamp-2 text-[10px] leading-tight text-muted-foreground mt-1">
-                {product.descricao}
-              </p>
-            )}
           </div>
         </CardContent>
-        <CardFooter className="p-2 pt-0 md:p-3 md:pt-0">
+        <CardFooter className="p-2 pt-0 md:p-3 md:pt-0 shrink-0">
           {isFractional ? (
             <Button
               className="w-full gap-1 rounded-lg md:rounded-xl md:gap-2 bg-primary hover:bg-primary/90 font-bold h-7 text-xs md:h-9 md:text-sm"
