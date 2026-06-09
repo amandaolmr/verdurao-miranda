@@ -181,9 +181,15 @@ function AccountPage() {
 
   const sendPasswordReset = async () => {
     if (!user?.email) return;
-    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(user.email);
+    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo: `${window.location.origin}/reset-senha`,
+    });
     if (resetErr) {
-      toast.error("Erro ao enviar e-mail de redefinição.");
+      if (resetErr.status === 429) {
+        toast.error("Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.");
+      } else {
+        toast.error("Erro ao enviar e-mail de redefinição.");
+      }
     } else {
       toast.success("E-mail de redefinição enviado para " + user.email);
     }
