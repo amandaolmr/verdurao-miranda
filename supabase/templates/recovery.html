@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Redefinição de Senha - Verdurão Miranda</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f4;
+      font-family: Arial, Helvetica, sans-serif;
+    "
+  >
+    <table
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      style="background-color: #f4f4f4; padding: 32px 16px"
+    >
+      <tr>
+        <td align="center">
+          <table
+            width="100%"
+            cellpadding="0"
+            cellspacing="0"
+            style="
+              max-width: 560px;
+              background-color: #ffffff;
+              border-radius: 12px;
+              overflow: hidden;
+              box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            "
+          >
+            <!-- Header verde -->
+            <tr>
+              <td style="background-color: #16a34a; padding: 28px 32px; text-align: center">
+                <img
+                  src="https://verduraomiranda.com.br/favicon.png"
+                  alt="Verdurão Miranda"
+                  width="56"
+                  height="56"
+                  style="
+                    display: inline-block;
+                    border-radius: 50%;
+                    background-color: #ffffff;
+                    padding: 6px;
+                  "
+                />
+                <p
+                  style="
+                    margin: 10px 0 0 0;
+                    color: #ffffff;
+                    font-size: 20px;
+                    font-weight: bold;
+                    letter-spacing: 0.5px;
+                  "
+                >
+                  Verdurão Miranda
+                </p>
+                <p style="margin: 4px 0 0 0; color: #d1fae5; font-size: 13px">
+                  Qualidade e Economia
+                </p>
+              </td>
+            </tr>
+
+            <!-- Corpo -->
+            <tr>
+              <td style="padding: 36px 32px 24px 32px">
+                <h1
+                  style="
+                    margin: 0 0 20px 0;
+                    font-size: 22px;
+                    font-weight: bold;
+                    color: #111827;
+                    text-align: center;
+                  "
+                >
+                  Redefinição de Senha
+                </h1>
+
+                <p style="margin: 0 0 12px 0; font-size: 15px; color: #374151; line-height: 1.6">
+                  Olá!
+                </p>
+                <p style="margin: 0 0 28px 0; font-size: 15px; color: #374151; line-height: 1.6">
+                  Recebemos uma solicitação para redefinir sua senha no
+                  <strong>Verdurão Miranda</strong>. Clique no botão abaixo para criar uma nova
+                  senha:
+                </p>
+
+                <!-- Botão -->
+                <table width="100%" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td align="center" style="padding: 0 0 28px 0">
+                      <a
+                        href="{{ .ConfirmationURL }}"
+                        style="
+                          display: inline-block;
+                          background-color: #16a34a;
+                          color: #ffffff;
+                          font-size: 15px;
+                          font-weight: bold;
+                          text-decoration: none;
+                          padding: 14px 36px;
+                          border-radius: 8px;
+                          letter-spacing: 0.5px;
+                        "
+                      >
+                        REDEFINIR SENHA
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <!-- Link alternativo -->
+                <p style="margin: 0 0 8px 0; font-size: 13px; color: #6b7280; line-height: 1.5">
+                  Se o botão não funcionar, copie e cole o link abaixo no seu navegador:
+                </p>
+                <p
+                  style="
+                    margin: 0 0 24px 0;
+                    font-size: 12px;
+                    color: #16a34a;
+                    word-break: break-all;
+                    line-height: 1.5;
+                  "
+                >
+                  {{ .ConfirmationURL }}
+                </p>
+
+                <!-- Aviso -->
+                <div
+                  style="
+                    background-color: #f9fafb;
+                    border-left: 4px solid #16a34a;
+                    border-radius: 4px;
+                    padding: 14px 16px;
+                  "
+                >
+                  <p style="margin: 0; font-size: 13px; color: #374151; line-height: 1.5">
+                    Se você <strong>não solicitou</strong> esta alteração, ignore este e-mail. Sua
+                    senha permanecerá a mesma.
+                  </p>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Rodapé -->
+            <tr>
+              <td
+                style="
+                  background-color: #f9fafb;
+                  padding: 20px 32px;
+                  text-align: center;
+                  border-top: 1px solid #e5e7eb;
+                "
+              >
+                <p style="margin: 0 0 4px 0; font-size: 13px; font-weight: bold; color: #374151">
+                  Verdurão Miranda
+                </p>
+                <p style="margin: 0 0 4px 0; font-size: 12px; color: #6b7280">
+                  Qualidade e Economia
+                </p>
+                <a
+                  href="https://verduraomiranda.com.br"
+                  style="font-size: 12px; color: #16a34a; text-decoration: none"
+                >
+                  verduraomiranda.com.br
+                </a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

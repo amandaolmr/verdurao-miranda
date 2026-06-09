@@ -1,1 +1,5 @@
 project_id = "jebphbtdzksabhaxfgxv"
+
+[auth.email.template.recovery]
+subject = "Redefinição de Senha - Verdurão Miranda"
+content_path = "./supabase/templates/recovery.html"
