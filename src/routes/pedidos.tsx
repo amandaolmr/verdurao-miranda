@@ -52,6 +52,8 @@ function buildWaUrl(config: ConfigLoja | null, orderId: string): string | null {
 }
 
 function OrdersPage() {
+  console.log("[PEDIDOS_VERSION]", "2026-06-08-build-001");
+
   const { user, session, loading: authLoading, initialized } = useAuth({ redirectToLogin: true });
   const { success } = Route.useSearch();
   const config = useConfig();
@@ -244,80 +246,74 @@ function OrdersPage() {
   }
 
   async function fetchOrderDetails(orderId: string) {
-    if (detailsLoadingById[orderId]) return orderItemsById[orderId] ?? [];
-    if (orderItemsById[orderId]) return orderItemsById[orderId];
+    console.log("[DETALHES] passo 0 — entrada. orderId=", orderId);
+    console.log("[DETALHES] passo 0 — detailsLoadingById[orderId]=", detailsLoadingById[orderId]);
+    console.log("[DETALHES] passo 0 — orderItemsById[orderId]=", orderItemsById[orderId]);
 
+    if (detailsLoadingById[orderId]) {
+      console.log("[DETALHES] passo 0 — bloqueado por loading, retornando cache");
+      return orderItemsById[orderId] ?? [];
+    }
+    if (orderItemsById[orderId]) {
+      console.log("[DETALHES] passo 0 — cache hit, retornando");
+      return orderItemsById[orderId];
+    }
+
+    console.log("[DETALHES] passo 1 — setDetailsLoadingById(true)");
     setDetailsLoadingById((prev) => ({ ...prev, [orderId]: true }));
     setDetailsErrorById((prev) => ({ ...prev, [orderId]: null }));
 
     const controller = new AbortController();
-    activeControllersRef.current.add(controller); // registra para cancelamento no desmonte
+    activeControllersRef.current.add(controller);
 
     let isTimedOut = false;
 
-    const raceTimeout = new Promise<never>((_, reject) => {
-      const timer = setTimeout(() => {
-        isTimedOut = true;
-        controller.abort();
-        console.warn("[Pedidos] REQUEST_TIMEOUT (detalhes) — 8s");
-        reject(new Error("TIMEOUT"));
-      }, 8_000);
-
-      controller.signal.addEventListener(
-        "abort",
-        () => {
-          clearTimeout(timer);
-          if (!isTimedOut) reject(new DOMException("unmounted", "AbortError"));
-        },
-        { once: true },
-      );
-    });
-
-    const t1 = performance.now();
-    console.log("[Pedidos] REQUEST_START (detalhes) — pedido", orderId);
+    console.log("[DETALHES] passo 2 — antes do try");
 
     try {
-      const { data, error } = (await Promise.race([
-        supabase
-          .from("itens_pedido")
-          .select(
-            "*, produtos(id, nome, preco, unidade_venda, imagem_url, permite_fracionamento, quantidade_minima)",
-          )
-          .eq("pedido_id", orderId),
-        raceTimeout,
-      ])) as { data: any; error: any };
+      console.log("[DETALHES] passo 3 — antes do await supabase");
+      console.time("itens_pedido");
 
-      if (error) throw error;
+      const { data, error } = await supabase
+        .from("itens_pedido")
+        .select("*")
+        .eq("pedido_id", orderId);
 
-      const elapsed1 = Math.round(performance.now() - t1);
-      if (elapsed1 > 2000) {
-        console.warn(`[Pedidos] REQUEST_SUCCESS (detalhes lento) — ${elapsed1}ms`);
-      } else {
-        console.log(`[Pedidos] REQUEST_SUCCESS (detalhes) — ${elapsed1}ms`);
+      console.timeEnd("itens_pedido");
+      console.log("[DETALHES] passo 4 — await retornou. rows=", data?.length ?? 0, "error=", error);
+
+      if (error) {
+        console.log("[DETALHES] passo 4a — error !== null, vai lançar");
+        throw error;
       }
 
+      console.log("[DETALHES] passo 5 — setOrderItemsById");
       const itens = data || [];
       setOrderItemsById((prev) => ({ ...prev, [orderId]: itens }));
+
+      console.log("[DETALHES] passo 6 — retornando itens. count=", itens.length);
       return itens;
     } catch (err: any) {
-      // Desmonte do componente — não atualizar estado
+      console.log("[DETALHES] catch — err=", err?.name, err?.message);
+
       if (!activeControllersRef.current.has(controller)) {
-        console.log("[Pedidos] REQUEST ABORTED (detalhes) — componente desmontado");
+        console.log("[DETALHES] catch — controller removido (desmontado), ignorando");
         return [];
       }
 
       const isAbortOrTimeout =
         isTimedOut || err?.name === "AbortError" || err?.message === "TIMEOUT";
       const message = isAbortOrTimeout
-        ? "A consulta de detalhes demorou mais de 20s. Tente novamente."
+        ? "A consulta de detalhes demorou mais de 8s. Tente novamente."
         : (err?.message ?? String(err) ?? "Erro desconhecido");
 
-      console.error("[Pedidos] REQUEST_ERROR (detalhes):", err?.message ?? err);
+      console.error("[DETALHES] catch — setDetailsErrorById:", message);
       setDetailsErrorById((prev) => ({ ...prev, [orderId]: message }));
       return [];
     } finally {
+      console.log("[DETALHES] finally — wasActive=", activeControllersRef.current.has(controller));
       const wasActive = activeControllersRef.current.has(controller);
-      activeControllersRef.current.delete(controller); // remove do conjunto ativo
+      activeControllersRef.current.delete(controller);
       if (wasActive) {
         setDetailsLoadingById((prev) => ({ ...prev, [orderId]: false }));
       }
