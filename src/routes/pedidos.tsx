@@ -271,16 +271,50 @@ function OrdersPage() {
     console.log("[DETALHES] passo 2 — antes do try");
 
     try {
-      console.log("[DETALHES] passo 3 — antes do await supabase");
-      console.time("itens_pedido");
+      // ── TESTE DEFINITIVO: raw fetch, sem Supabase JS client ──────────────────
+      // O cliente JS trava antes de enviar a requisição (passo 3 sem passo 4).
+      // Se este fetch funcionar, o problema está no cliente Supabase JS.
+      console.log("[DETALHES] passo 3.1");
+      console.log("[DETALHES] passo 3.2");
+      console.log("[REST_TEST] inicio");
+      const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string) ?? "";
+      const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string) ?? "";
 
-      const { data, error } = await supabase
-        .from("itens_pedido")
-        .select("*")
-        .eq("pedido_id", orderId);
+      console.log("[REST_TEST] antes do getSession");
+      const {
+        data: { session: freshSession },
+      } = await supabase.auth.getSession();
+      console.log(
+        "[REST_TEST] getSession retornou — token=",
+        freshSession?.access_token ? "ok" : "null",
+      );
 
-      console.timeEnd("itens_pedido");
-      console.log("[DETALHES] passo 4 — await retornou. rows=", data?.length ?? 0, "error=", error);
+      const token = freshSession?.access_token ?? SUPABASE_KEY;
+
+      console.log("[REST_TEST] inicio — orderId=", orderId);
+      console.log("[REST_TEST] token type=", session?.access_token ? "user_token" : "anon_key");
+
+      const url = `${SUPABASE_URL}/rest/v1/itens_pedido?select=*&pedido_id=eq.${orderId}`;
+      console.log("[REST_TEST] antes do fetch — url length=", url.length);
+
+      const response = await fetch(url, {
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      console.log("[REST_TEST] status=", response.status);
+      const json = await response.json();
+      console.log("[REST_TEST] json recebido — rows=", Array.isArray(json) ? json.length : json);
+
+      if (!response.ok) {
+        throw new Error(`REST_TEST HTTP ${response.status}: ${JSON.stringify(json)}`);
+      }
+
+      const data = Array.isArray(json) ? json : [];
+      const error = null;
 
       if (error) {
         console.log("[DETALHES] passo 4a — error !== null, vai lançar");
