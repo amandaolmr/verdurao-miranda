@@ -133,9 +133,9 @@ function OrdersPage() {
     // Delays entre tentativas: 2s (após a 1ª) e 5s (após a 2ª).
     // Cobre Supabase free tier cold start (~3-10s) e falhas de rede transitórias.
     // Só falha definitivamente após esgotar todas as tentativas.
-    const MAX_ATTEMPTS = 3;
-    const RETRY_DELAYS_MS = [2_000, 5_000];
-    const ATTEMPT_TIMEOUT_MS = 15_000;
+    const MAX_ATTEMPTS = 2;
+    const RETRY_DELAYS_MS = [1_000];
+    const ATTEMPT_TIMEOUT_MS = 8_000;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       // Desmonte entre tentativas — para sem atualizar estado
@@ -159,7 +159,7 @@ function OrdersPage() {
           isTimedOut = true;
           controller.abort();
           console.warn(
-            `[Pedidos] Tentativa ${attempt}/${MAX_ATTEMPTS} timeout (${ATTEMPT_TIMEOUT_MS / 1000}s)`,
+            `[Pedidos] REQUEST_TIMEOUT — tentativa ${attempt}/${MAX_ATTEMPTS} (${ATTEMPT_TIMEOUT_MS / 1000}s)`,
           );
           reject(new Error("TIMEOUT"));
         }, ATTEMPT_TIMEOUT_MS);
@@ -175,7 +175,7 @@ function OrdersPage() {
       });
 
       try {
-        console.log(`[Pedidos] REQUEST START — tentativa ${attempt}/${MAX_ATTEMPTS} uid=`, uid);
+        console.log(`[Pedidos] REQUEST_START — tentativa ${attempt}/${MAX_ATTEMPTS} uid=`, uid);
 
         const { data: pedidos, error } = (await Promise.race([
           supabase
@@ -191,8 +191,8 @@ function OrdersPage() {
         const elapsed = Math.round(performance.now() - t0);
         console.log(
           elapsed > 2000
-            ? `[Pedidos] REQUEST SUCCESS (lento) — ${elapsed}ms tentativa ${attempt}`
-            : `[Pedidos] REQUEST SUCCESS — ${elapsed}ms tentativa ${attempt}`,
+            ? `[Pedidos] REQUEST_SUCCESS (lento) — ${elapsed}ms tentativa ${attempt}`
+            : `[Pedidos] REQUEST_SUCCESS — ${elapsed}ms tentativa ${attempt}`,
         );
         console.log(`[Pedidos] ${pedidos?.length ?? 0} pedido(s) encontrado(s)`);
 
@@ -229,7 +229,7 @@ function OrdersPage() {
         const elapsed = Math.round(performance.now() - t0);
         const isTimeout = isTimedOut || err?.message === "TIMEOUT";
         console.error(
-          `[Pedidos] REQUEST ERROR — ${MAX_ATTEMPTS} tentativas falharam em ${elapsed}ms`,
+          `[Pedidos] REQUEST_ERROR — ${MAX_ATTEMPTS} tentativas falharam em ${elapsed}ms`,
         );
         setLoadError(true);
         setErrorMessage(
@@ -259,9 +259,9 @@ function OrdersPage() {
       const timer = setTimeout(() => {
         isTimedOut = true;
         controller.abort();
-        console.warn("[Pedidos] Timeout 30s (detalhes) — abortando");
+        console.warn("[Pedidos] REQUEST_TIMEOUT (detalhes) — 8s");
         reject(new Error("TIMEOUT"));
-      }, 30_000);
+      }, 8_000);
 
       controller.signal.addEventListener(
         "abort",
@@ -274,7 +274,7 @@ function OrdersPage() {
     });
 
     const t1 = performance.now();
-    console.log("[Pedidos] REQUEST START (detalhes) — pedido", orderId);
+    console.log("[Pedidos] REQUEST_START (detalhes) — pedido", orderId);
 
     try {
       const { data, error } = (await Promise.race([
@@ -291,9 +291,9 @@ function OrdersPage() {
 
       const elapsed1 = Math.round(performance.now() - t1);
       if (elapsed1 > 2000) {
-        console.warn(`[Pedidos] REQUEST SUCCESS (detalhes lento) — ${elapsed1}ms`);
+        console.warn(`[Pedidos] REQUEST_SUCCESS (detalhes lento) — ${elapsed1}ms`);
       } else {
-        console.log(`[Pedidos] REQUEST SUCCESS (detalhes) — ${elapsed1}ms`);
+        console.log(`[Pedidos] REQUEST_SUCCESS (detalhes) — ${elapsed1}ms`);
       }
 
       const itens = data || [];
@@ -312,7 +312,7 @@ function OrdersPage() {
         ? "A consulta de detalhes demorou mais de 20s. Tente novamente."
         : (err?.message ?? String(err) ?? "Erro desconhecido");
 
-      console.error("[Pedidos] REQUEST ERROR (detalhes):", err?.message ?? err);
+      console.error("[Pedidos] REQUEST_ERROR (detalhes):", err?.message ?? err);
       setDetailsErrorById((prev) => ({ ...prev, [orderId]: message }));
       return [];
     } finally {
