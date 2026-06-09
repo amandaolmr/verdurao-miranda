@@ -27,7 +27,26 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
   const navigate = useNavigate();
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail.trim(), {
+        redirectTo: `${window.location.origin}/reset-senha`,
+      });
+      if (error) throw error;
+      setForgotSent(true);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Erro ao enviar e-mail de recuperação.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
@@ -144,7 +163,67 @@ function LoginPage() {
             <Button type="submit" className="w-full py-6 text-lg font-bold" disabled={isLoading}>
               {isLoading ? "Entrando..." : "Entrar"}
             </Button>
+            <button
+              type="button"
+              className="text-sm text-muted-foreground hover:text-primary text-center w-full"
+              onClick={() => {
+                setShowForgot(true);
+                setForgotEmail(email);
+              }}
+            >
+              Esqueceu sua senha?
+            </button>
           </form>
+
+          {/* Painel: Recuperar senha */}
+          {showForgot && (
+            <div className="mt-4 rounded-xl border bg-muted/30 p-4">
+              {forgotSent ? (
+                <div className="text-center space-y-2">
+                  <p className="text-sm font-semibold text-primary">E-mail enviado!</p>
+                  <p className="text-xs text-muted-foreground">
+                    Verifique sua caixa de entrada e clique no link para redefinir sua senha.
+                  </p>
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground hover:text-primary"
+                    onClick={() => {
+                      setShowForgot(false);
+                      setForgotSent(false);
+                    }}
+                  >
+                    Fechar
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="grid gap-3">
+                  <p className="text-sm font-semibold">Recuperar senha</p>
+                  <p className="text-xs text-muted-foreground">
+                    Informe seu e-mail e enviaremos um link para criar uma nova senha.
+                  </p>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="email"
+                      placeholder="seu@email.com"
+                      className="pl-10"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button type="submit" className="flex-1" disabled={isLoading}>
+                      {isLoading ? "Enviando..." : "Enviar link"}
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setShowForgot(false)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
         </CardContent>
         <CardFooter className="flex flex-col gap-4 border-t pt-6 text-center text-sm">
           <p className="text-muted-foreground">

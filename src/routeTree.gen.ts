@@ -14,6 +14,7 @@ import { Route as MinhaContaRouteImport } from './routes/minha-conta'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as CadastroRouteImport } from './routes/cadastro'
+import { Route as ResetSenhaRouteImport } from './routes/reset-senha'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
@@ -48,6 +49,11 @@ const CheckoutRoute = CheckoutRouteImport.update({
 const CadastroRoute = CadastroRouteImport.update({
   id: '/cadastro',
   path: '/cadastro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetSenhaRoute = ResetSenhaRouteImport.update({
+  id: '/reset-senha',
+  path: '/reset-senha',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/minha-conta': typeof MinhaContaRoute
   '/pedidos': typeof PedidosRoute
+  '/reset-senha': typeof ResetSenhaRoute
   '/admin/bairros': typeof AdminBairrosRoute
   '/admin/categorias': typeof AdminCategoriasRoute
   '/admin/configuracoes': typeof AdminConfiguracoesRoute
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/minha-conta': typeof MinhaContaRoute
   '/pedidos': typeof PedidosRoute
+  '/reset-senha': typeof ResetSenhaRoute
   '/admin/bairros': typeof AdminBairrosRoute
   '/admin/categorias': typeof AdminCategoriasRoute
   '/admin/configuracoes': typeof AdminConfiguracoesRoute
@@ -143,6 +151,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/minha-conta': typeof MinhaContaRoute
   '/pedidos': typeof PedidosRoute
+  '/reset-senha': typeof ResetSenhaRoute
   '/admin/bairros': typeof AdminBairrosRoute
   '/admin/categorias': typeof AdminCategoriasRoute
   '/admin/configuracoes': typeof AdminConfiguracoesRoute
@@ -162,6 +171,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/minha-conta'
     | '/pedidos'
+    | '/reset-senha'
     | '/admin/bairros'
     | '/admin/categorias'
     | '/admin/configuracoes'
@@ -178,6 +188,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/minha-conta'
     | '/pedidos'
+    | '/reset-senha'
     | '/admin/bairros'
     | '/admin/categorias'
     | '/admin/configuracoes'
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/minha-conta'
     | '/pedidos'
+    | '/reset-senha'
     | '/admin/bairros'
     | '/admin/categorias'
     | '/admin/configuracoes'
@@ -213,6 +225,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MinhaContaRoute: typeof MinhaContaRoute
   PedidosRoute: typeof PedidosRoute
+  ResetSenhaRoute: typeof ResetSenhaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -250,6 +263,13 @@ declare module '@tanstack/react-router' {
       path: '/cadastro'
       fullPath: '/cadastro'
       preLoaderRoute: typeof CadastroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-senha': {
+      id: '/reset-senha'
+      path: '/reset-senha'
+      fullPath: '/reset-senha'
+      preLoaderRoute: typeof ResetSenhaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -357,6 +377,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MinhaContaRoute: MinhaContaRoute,
   PedidosRoute: PedidosRoute,
+  ResetSenhaRoute: ResetSenhaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

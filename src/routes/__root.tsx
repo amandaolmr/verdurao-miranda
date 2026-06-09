@@ -158,7 +158,8 @@ function RootComponent() {
       } else {
         toast.error(desc ?? "Link inválido. Tente novamente.");
       }
-      router.navigate({ to: "/admin/login" });
+      const isAdminLink = window.location.pathname.startsWith("/admin");
+      router.navigate({ to: isAdminLink ? "/admin/login" : "/login" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
